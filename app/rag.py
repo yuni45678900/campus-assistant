@@ -9,6 +9,7 @@ RAG 主链路：查询改写 → 意图路由 → 多库检索 → 生成 → �
 from __future__ import annotations
 
 import asyncio
+import re
 import time
 from typing import AsyncGenerator, Dict, List, Optional, Tuple
 
@@ -17,13 +18,49 @@ from app.assistants import Assistant, discover
 from app.indexer import store
 from app.llm import OllamaError, client
 from app.prompts import (FALLBACK_SYSTEM_PROMPT, NO_HIT_REPLY, REWRITE_PROMPT,
-                         build_user_message)
+                         SMALL_TALK_REPLIES, build_user_message)
 from app.retriever import HybridRetriever, SearchHit, reranker
 from app.router import RouteDecision, router
 
 # 指代词：短句里出现这些词，说明是追问，需要补全上下文
 _PRONOUNS = ("它", "他", "这个", "那个", "这些", "那些", "该", "此",
              "那里", "这里", "还有", "另外", "呢", "上面", "刚才")
+
+# --------------------------------------------------------------------------
+# 寒暄 / 元问题识别（纯规则，零延迟、零模型调用）
+#
+# 为什么需要：这类话不是"校园知识问题"，如果照常走「改写 → 路由 → 检索 → 只依据资料作答」，
+# 向量检索仍会返回"最相似"的几段（哪怕毫不相关），模型又被规则要求只能依据资料，
+# 结果就是拿无关资料硬答。因此在链路最前面直接拦掉。
+# --------------------------------------------------------------------------
+_CHITCHAT = {
+    "greeting": ("你好", "您好", "hi", "hello", "hey", "在吗", "在么", "有人吗",
+                 "哈喽", "早上好", "中午好", "下午好", "晚上好"),
+    "thanks": ("谢谢", "谢谢你", "多谢", "感谢", "辛苦了", "好的", "好的谢谢",
+               "明白了", "收到", "懂了"),
+    "bye": ("再见", "拜拜", "bye", "下次见", "回头见"),
+    "identity": ("你是谁", "你叫什么", "你能做什么", "你会什么", "你能干什么",
+                 "你有什么功能", "你的功能", "你能帮我做什么", "介绍一下你",
+                 "自我介绍", "你能回答什么", "你是什么"),
+}
+_NOISE = re.compile(r"[\s,，。.、!！?？~～;；:：\"'“”‘’（）()【】\[\]]+")
+
+
+def detect_small_talk(question: str) -> Optional[str]:
+    """
+    识别寒暄 / 元问题，返回类别名（greeting/thanks/bye/identity），否则 None。
+
+    只在"整句基本就是寒暄"时命中：去掉标点后长度不超过 16，且命中词之外只允许多 3 个字
+    （容纳"你好呀""谢谢你啦"这类语气词）。"你好，我想问下报到流程"不会命中。
+    """
+    s = _NOISE.sub("", (question or "")).lower()
+    if not s or len(s) > 16:
+        return None
+    for kind, words in _CHITCHAT.items():
+        for w in words:
+            if s == w or (s.startswith(w) and len(s) - len(w) <= 3):
+                return kind
+    return None
 
 
 def resolve_followup(question: str, history: List[Dict]) -> str:
@@ -147,6 +184,16 @@ class RAGEngine:
         history = history or []
         t0 = time.time()
         trace: Dict = {"question": question, "assistant_pref": assistant}
+
+        # ── 0. 寒暄 / 元问题：直接回应，不检索、不改写、不调用模型 ──
+        small_talk = detect_small_talk(question)
+        if small_talk:
+            trace["small_talk"] = small_talk
+            yield {"type": "delta", "data": SMALL_TALK_REPLIES[small_talk]}
+            yield {"type": "done",
+                   "data": {"elapsed": round(time.time() - t0, 1),
+                            "small_talk": True, "trace": trace}}
+            return
 
         # ── 1. 查询改写 ───────────────────────────────
         yield {"type": "status", "stage": "rewrite", "data": "正在理解问题…"}
