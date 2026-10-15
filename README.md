@@ -36,10 +36,10 @@
 | 操作系统 | Windows 10/11 / macOS / Linux | Windows ✔ |
 | 内存 | ≥ 16 GB（8B 模型 Q4 量化约占 6 GB） | 32 GB ✔ |
 | 磁盘 | ≥ 15 GB 空闲 | 需确认 |
-| 显卡 | **不需要**，纯 CPU 可运行 | 无独显 ✔ |
+| 显卡 | **可选**：有 N 卡时 Ollama 自动把模型载入显存加速；无独显可纯 CPU 运行 | RTX 4060 8 GB ✔ |
 | Python | 3.10 ~ 3.13 | — |
 
-> **CPU 性能预期（16 线程 / 32 GB 内存，无独显的实测值）**：
+> **纯 CPU 模式性能预期（16 线程 / 32 GB 内存、关闭显卡加速的实测值）**：
 > 生成速度约 **15 token/s**（比预估的 5~8 快一倍），
 > **首字响应 16~32 秒**（瓶颈在 prompt 处理），一条完整回答 **17~35 秒**。
 > 系统已针对 CPU 做了专项优化（见第五节），前端全程流式输出 + 阶段状态提示，
@@ -187,21 +187,16 @@ campus-assistant/
 │   └── cli.py          命令行：doctor / build / search / ask / chat
 ├── web/
 │   ├── index.html      入口门户（校园插画 + 两张角色卡 + 实时状态）
-│   ├── student.html    学生端（四个助手各自配色，单文件零依赖）
+│   ├── student.html    学生端（各分类配色，单文件零依赖）
 │   └── admin.html      管理端（五视图知识库控制台）
-├── demo-site/          在线展示版（纯静态，可打包发布给老师同学）
-│   ├── index.html      门户 · student.html 自动路由页
-│   ├── banxue|zhaosheng|dayi|yingxin.html   四个助手独立页（由 student.html 派生）
-│   ├── admin.html      管理端只读快照
-│   └── assets/         app.css / app.js / admin.js / data.js（构建时生成）
 ├── tools/
 │   ├── make_sample_docs.py   生成演示文档
 │   ├── mock_ollama.py        模拟模型服务（无 Ollama 时预览界面用）
 │   ├── static_check.py       前端静态自检（语法 / id 引用 / 标签配平）
 │   ├── verify_admin.py       管理端端到端验证（31 项，含上传与安全）
-│   ├── gen_presets.py        真实跑一遍预置问答 → demo-site/qa.json
-│   ├── build_demo.py         抓接口快照 + 内联 data.js + 派生四个助手页
-│   └── pack_demo.py          把 demo-site 打成可导入资料库的 zip
+│   ├── gen_presets.py        真实跑一遍预置问答（生成 qa.json 快照）
+│   ├── build_demo.py         抓接口快照 + 内联 data.js + 派生各分类独立页
+│   └── pack_demo.py          把生成的静态站打成可导入资料库的 zip
 ├── data/
 │   ├── raw/<助手名>/    ← 你的校园文档放这里，一个目录 = 一个助手
 │   ├── index/          构建好的索引，按助手分库（可随时删除重建）
@@ -368,28 +363,21 @@ campus-assistant/
 > `POST /api/admin/upload/raw`。服务端没装 `python-multipart` 时页面会自动降级到后者 ——
 > 否则 FastAPI 会在「定义路由」阶段就抛错，整个服务都起不来。
 
-### 在线展示版（demo-site · 发给老师同学看）
+### 静态展示版（可选，需自行生成）
 
-本机版要开着电脑才能访问。如果只是**给别人看**（交材料、发链接），用 `demo-site/`：
+仓库**不含**静态展示站。如需一个"打开就能看"的纯静态展示页（给老师同学预览、或交材料），
+按下面三步自行生成（产物在本地，不会随代码仓库发布）：
 
 ```bash
-.venv\Scripts\python.exe tools\gen_presets.py    # ① 用本机模型真实跑一遍预置问答 → demo-site/qa.json
-.venv\Scripts\python.exe tools\build_demo.py     # ② 抓接口快照 + 内联成 assets/data.js + 派生四个助手页
+.venv\Scripts\python.exe tools\gen_presets.py    # ① 用本机模型真实跑一遍预置问答，生成 qa.json 快照
+.venv\Scripts\python.exe tools\build_demo.py     # ② 抓接口快照 + 内联成 assets/data.js + 派生各分类独立页
 .venv\Scripts\python.exe tools\pack_demo.py      # ③ 打包成 zip（入口 index.html 在压缩包根目录）
 ```
 
-把 zip 导入资料库并发布，就得到一个**永久链接**（电脑关机也能开）。
-站点是纯静态、零外部依赖：`index.html` 门户 / `student.html` 自动路由页 /
-`banxue|zhaosheng|dayi|yingxin.html` 四个助手页 / `admin.html` 管理端。
-
-| 能做 | 不能做 |
-|---|---|
-| 点开就看，四套配色、四个助手齐全 | 访客**不能自由提问**，只能点预置的 16 条问题 |
-| 预置问答是真实的（本机 qwen3:8b 跑的，带原文出处） | 管理端是**只读快照**，上传/删除/重建按钮不生效 |
-| 管理端展示真实统计、索引构成、`.doc` 遗留问题 | 数据不会自动更新，改完文档要重跑上面的 ①②③ |
-
-> 道理很简单：自由提问需要 qwen3:8b 这个 5GB 模型跑起来，云端静态托管跑不动它。
-> 想现场随便问，就用本机完整版（`start.bat` + 热点）。
+生成物是纯静态、零外部依赖的站点，可导入资料库发布、拿到一个永久链接。
+它的能力有边界：**访客不能自由提问**（只能点预置问题）、管理端是**只读快照**、
+数据不会自动更新（改完文档要重跑 ①②③）—— 自由提问需要本机把 qwen3:8b 跑起来，
+云端静态托管跑不动这个模型，所以想现场随便问就用本机完整版（`start.bat`）。
 
 调试小开关：任意学生端页面加 `?ask=1` 会自动展开第 1 条预置问答，`&speed=0` 关掉打字动画
 （自动化截图/DOM 校验用）。
