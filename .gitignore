@@ -1,0 +1,84 @@
+# 虚拟环境（约 3GB，可重建）
+.venv/
+
+# 模型权重（约 1.3GB，可重新下载）
+data/models/
+
+# 索引与提取产物（可由 build.bat 重建）
+data/index/
+data/assets/
+
+# 演示文档（仅开发期使用）
+data/sample_demo/
+
+# 演示素材暂存区：demo_reset.bat 会把 data/raw 的资料搬到这里，
+# 演示时再拖回上传框。内容和 data/raw 重复，别进版本库。
+演示素材/
+
+# Python 缓存
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# 日志与临时文件
+*.log
+_start.log
+_*.py
+_*.js
+_*.bin
+
+# 编辑器
+.vscode/
+.idea/
+
+# 本地配置（含管理端口令，别提交）
+.env
+
+# 演示账号表（明文密码，别提交）
+data/accounts.json
+
+# ===================================================================
+# 以下为「公开发布」时的排除项 —— 见技术报告《数据、权利与隐私》
+# 校本资料归学校所有，不随代码公开
+# ===================================================================
+data/raw/
+data/incoming/
+data/trash/
+data/logs/
+data/settings.json
+data/faq.json
+data/assistants.json
+
+# 知识库索引备份（内含校本资料正文）
+docs/backup/
+docs/preview/
+
+# 参赛与内部资料
+docs/2026AIC*.docx
+docs/_归档旧版本/
+docs/最新稿/
+docs/*.pdf
+docs/_outline.txt
+docs/_rules.txt
+
+# 本地工作记录
+.workbuddy/
+
+# 本地辅助脚本（不随开源发布）
+推送.bat
+推送说明.md
+
+# 静态演示站：data.js 由校本资料构建生成，含真实校情（生源比例、
+# 招生省份、专业设置），属学校口径信息，不随代码公开。
+# 需要演示时用 tools/build_demo.py 在本地重新构建即可。
+demo-site/
+
+# 操作系统垃圾文件
+Thumbs.db
+.DS_Store
+desktop.ini
+
+# 编辑器杂项
+*.swp
+*.swo
+*~

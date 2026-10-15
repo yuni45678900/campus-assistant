@@ -1,0 +1,1556 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>学生端 · 校园智能助手</title>
+<style>
+  /* ══════════════════════════════════════════════════════════
+     设计令牌 —— 校园生活风
+     天空蓝 / 薄荷绿 / 暖阳黄，圆角 22px，柔和投影，渐变主按钮
+     换肤：JS 按 URL 里的助手名覆盖 --brand / --brand-rgb / --glow-*
+     所有用到主色的地方一律写成 rgba(var(--brand-rgb),…)，
+     否则会出现"换色只换一半"。
+     ══════════════════════════════════════════════════════════ */
+  :root{
+    /* 主色：青绿 → 湖蓝（参考图配色）。助手主题色会按 URL 覆盖这几个变量。 */
+    --brand:#2ab3a0; --brand-rgb:42,179,160; --brand-deep:#1d8f80; --brand-2:#3fa9d4;
+    --glow-1:rgba(63,169,212,.26); --glow-2:rgba(42,179,160,.20);
+    --bg:#eef3f9; --panel:#fff;
+    --line:#e8ecf5; --line-soft:#f2f5fb;
+    --text:#1e293b; --text-2:#4a5568; --text-3:#94a3b8;
+    --mint:#34d399; --sun:#fbbf24; --coral:#fb7185;
+    --ok:#10b981; --ok-soft:rgba(52,211,153,.14);
+    --warn:#d97706; --warn-soft:#fef4e6;
+    --err:#dc2626; --err-soft:#fdeceb;
+    --radius:22px;
+    --sh:0 8px 26px rgba(30,41,59,.07);
+    --sh-lg:0 18px 44px rgba(var(--brand-rgb),.16);
+    --mono:"Cascadia Code",Consolas,"Courier New",monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    font-family:"Segoe UI","Microsoft YaHei","PingFang SC",system-ui,sans-serif;
+    background:var(--bg);color:var(--text);font-size:14.5px;line-height:1.75;
+    -webkit-font-smoothing:antialiased;
+  }
+  /* 背景光晕 —— 跟随主题变色 */
+  body::before{
+    content:"";position:fixed;top:-260px;right:-200px;width:620px;height:620px;
+    border-radius:50%;background:radial-gradient(circle,var(--glow-1),transparent 68%);
+    pointer-events:none;z-index:0;transition:background .5s;
+  }
+  body::after{
+    content:"";position:fixed;bottom:-300px;left:-220px;width:660px;height:660px;
+    border-radius:50%;background:radial-gradient(circle,var(--glow-2),transparent 68%);
+    pointer-events:none;z-index:0;transition:background .5s;
+  }
+  .app{display:flex;height:100vh;overflow:hidden;position:relative;z-index:1}
+
+  /* ══ 侧栏 ══════════════════════════ */
+  .sidebar{
+    width:286px;flex-shrink:0;background:rgba(255,255,255,.82);backdrop-filter:blur(14px);
+    border-right:1px solid var(--line);display:flex;flex-direction:column;
+    padding:20px 16px;gap:13px;overflow-y:auto;
+  }
+  .brand{display:flex;align-items:center;gap:11px;padding:0 4px 2px;text-decoration:none;color:inherit}
+  .brand-logo{
+    width:40px;height:40px;border-radius:13px;flex-shrink:0;display:grid;place-items:center;
+    font-size:20px;background:linear-gradient(135deg,var(--brand),var(--brand-2));
+    box-shadow:0 8px 18px rgba(var(--brand-rgb),.32);transition:background .4s,box-shadow .4s;
+  }
+  .brand-name{font-size:15px;font-weight:700;letter-spacing:.2px;line-height:1.35}
+  /* 校园地图入口：坐在品牌名右侧，管理端没配就不显示 */
+  .map-btn{
+    margin-left:auto;flex-shrink:0;width:32px;height:32px;border-radius:11px;
+    display:grid;place-items:center;font-size:15px;cursor:pointer;line-height:1;
+    background:rgba(var(--brand-rgb),.12);border:1px solid rgba(var(--brand-rgb),.26);
+    transition:.18s;
+  }
+  .map-btn:hover{background:rgba(var(--brand-rgb),.22);transform:translateY(-1px);
+    box-shadow:0 4px 12px rgba(var(--brand-rgb),.22)}
+  /* 校名：演示时一眼看出这个号是给哪个大学开的 */
+  .brand-sub{
+    font-size:11.5px;color:var(--brand);line-height:1.4;margin-top:2px;font-weight:600;
+    max-width:172px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  }
+
+  .card{background:#fff;border:1px solid var(--line);border-radius:16px;padding:12px 13px}
+  .card-title{font-size:11px;font-weight:700;color:var(--text-3);letter-spacing:.7px;margin-bottom:9px}
+  .row{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:3.5px 0;font-size:12.5px}
+  .row .k{color:var(--text-2)}
+  .row .v{color:var(--text);font-weight:600;max-width:150px;overflow:hidden;
+    text-overflow:ellipsis;white-space:nowrap;text-align:right}
+  .dot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:6px;vertical-align:1px}
+  .dot.ok{background:var(--ok);box-shadow:0 0 0 3px var(--ok-soft)}
+  .dot.bad{background:var(--err);box-shadow:0 0 0 3px var(--err-soft)}
+  .dot.wait{background:var(--sun);box-shadow:0 0 0 3px rgba(251,191,36,.18)}
+
+  /* 助手入口卡（可点击，每张自带配色） */
+  .entries{display:flex;flex-direction:column;gap:8px}
+  .entry{
+    display:flex;align-items:center;gap:10px;padding:9px 11px;border-radius:14px;
+    border:1px solid var(--line);background:#fff;text-decoration:none;color:inherit;
+    transition:transform .2s cubic-bezier(.2,.8,.3,1),box-shadow .2s,border-color .2s;
+    position:relative;overflow:hidden;
+  }
+  .entry::before{
+    content:"";position:absolute;left:0;top:0;bottom:0;width:3.5px;
+    background:var(--e-color,var(--brand));
+  }
+  .entry:hover{transform:translateX(4px);box-shadow:0 8px 20px rgba(30,41,59,.08);
+    border-color:color-mix(in srgb,var(--e-color,var(--brand)) 30%,#fff)}
+  .entry .e-ico{
+    width:32px;height:32px;border-radius:11px;flex-shrink:0;display:grid;place-items:center;
+    font-size:16px;background:color-mix(in srgb,var(--e-color,var(--brand)) 13%,#fff);
+  }
+  .entry .e-i{min-width:0;flex:1}
+  .entry .e-n{font-size:13px;font-weight:700;display:flex;align-items:center;gap:6px}
+  .entry .e-n .tick{
+    margin-left:auto;font-size:10px;font-weight:700;color:#fff;background:var(--e-color,var(--brand));
+    padding:1px 7px;border-radius:999px;
+  }
+  .entry .e-d{font-size:11px;color:var(--text-3);overflow:hidden;
+    text-overflow:ellipsis;white-space:nowrap;margin-top:1px}
+  .entry .e-arr{color:var(--text-3);font-size:13px;flex-shrink:0;transition:transform .2s}
+  .entry:hover .e-arr{transform:translateX(3px);color:var(--e-color,var(--brand))}
+
+  .hint{font-size:11.5px;color:var(--text-3);line-height:1.75}
+  .hint b{color:var(--text-2);font-weight:600}
+
+  /* ══ 主区 ══════════════════════════ */
+  .main{flex:1;display:flex;flex-direction:column;min-width:0}
+  .topbar{
+    height:58px;flex-shrink:0;border-bottom:1px solid var(--line);
+    background:rgba(255,255,255,.72);backdrop-filter:blur(12px);
+    display:flex;align-items:center;gap:12px;padding:0 24px;
+  }
+  .topbar .lbl{font-size:12.5px;color:var(--text-3);white-space:nowrap;flex-shrink:0}
+  .back{
+    display:inline-flex;align-items:center;gap:6px;padding:6px 13px;border-radius:999px;
+    border:1px solid var(--line);background:#fff;font-size:12.5px;color:var(--text-2);
+    cursor:pointer;font-family:inherit;transition:.18s;text-decoration:none;white-space:nowrap;
+  }
+  .back:hover{border-color:rgba(var(--brand-rgb),.45);color:var(--brand);
+    background:rgba(var(--brand-rgb),.06)}
+
+  /* ══ 身份条 + 管理端入口 ════════════
+     学生账号只看到自己的身份；管理账号多看一个「进入管理端」。
+     出口方向照旧：管理端 → 学生端 不受限。 */
+  .me{
+    display:flex;align-items:center;gap:9px;padding:9px 13px;border-radius:14px;
+    background:#fff;border:1px solid var(--line);font-size:12.5px;color:var(--text-2);
+  }
+  .me-dot{
+    width:8px;height:8px;border-radius:50%;flex-shrink:0;background:var(--brand);
+    box-shadow:0 0 0 3px rgba(var(--brand-rgb),.16);
+  }
+  .me.admin .me-dot{background:#10b981;box-shadow:0 0 0 3px rgba(16,185,129,.18)}
+  .me-txt{flex:1;font-weight:600;color:var(--text)}
+  .me.admin .me-txt{color:#0f9d76}
+  .me-out{
+    border:1px solid var(--line);background:#fff;border-radius:9px;padding:3px 10px;
+    font-size:11.5px;font-family:inherit;color:var(--text-3);cursor:pointer;transition:.18s;
+  }
+  .me-out:hover{border-color:rgba(220,38,38,.35);color:var(--err);background:var(--err-soft)}
+  /* hidden 必须真的隐藏：.back 里的 display:inline-flex 会盖掉 UA 样式表
+     的 [hidden]{display:none}，否则学生身份也能看见「进入管理端」。 */
+  [hidden]{display:none !important}
+  .lock-entry{width:100%;justify-content:center;gap:7px;background:#fff}
+  .lock-entry .lk{font-size:13px;line-height:1}
+
+  .spacer{flex:1}
+
+  /* 对话区做成 flex 列；.wrap 至少撑满一屏，于是只有欢迎区时
+     它靠 .empty 的 margin:auto 垂直居中。
+     一旦开始对话，.empty 被隐藏（display:none 不参与布局），
+     消息自然从顶部往下排，不会被推到底部。 */
+  .messages{flex:1;overflow-y:auto;padding:26px 24px 6px;display:flex;flex-direction:column}
+  .wrap{max-width:860px;margin:0 auto;display:flex;flex-direction:column;gap:22px;
+        flex-shrink:0;width:100%;min-height:100%}
+
+  /* ── 欢迎区 ── */
+  .empty{max-width:700px;margin:auto;text-align:center}
+  .empty-icon{
+    width:72px;height:72px;margin:0 auto 18px;border-radius:24px;
+    background:linear-gradient(135deg,var(--brand),var(--brand-2));display:grid;place-items:center;
+    font-size:34px;box-shadow:0 16px 36px rgba(var(--brand-rgb),.30);
+    animation:bob 4.5s ease-in-out infinite;transition:background .4s,box-shadow .4s;
+  }
+  @keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+  .empty h2{font-size:23px;font-weight:800;margin-bottom:9px;letter-spacing:-.2px}
+  .empty .sub{color:var(--text-2);font-size:14px;margin-bottom:0}
+  .samples{display:grid;grid-template-columns:1fr 1fr;gap:11px;text-align:left;margin-top:22px}
+  .sample{
+    padding:12px 14px;border:1px solid var(--line);border-radius:16px;background:#fff;
+    font-size:13px;color:var(--text-2);cursor:pointer;transition:.2s;display:flex;gap:9px;align-items:flex-start;
+  }
+  .sample:hover{
+    border-color:rgba(var(--brand-rgb),.42);background:rgba(var(--brand-rgb),.05);
+    color:var(--brand);transform:translateY(-3px);box-shadow:0 10px 22px rgba(var(--brand-rgb),.13)
+  }
+  .sample .si{font-size:15px;line-height:1.5;flex-shrink:0}
+  .sample .tx{flex:1;min-width:0}
+
+  /* 自动页的助手入口宫格 */
+  .grid-title{font-size:12.5px;color:var(--text-3);margin:30px 0 13px;text-align:left;
+    display:flex;align-items:center;gap:8px}
+  .grid-title::after{content:"";flex:1;height:1px;background:var(--line)}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:13px;text-align:left}
+  .gcard{
+    border:1px solid var(--line);border-radius:20px;background:#fff;padding:15px;
+    text-decoration:none;color:inherit;transition:transform .24s cubic-bezier(.2,.8,.3,1),box-shadow .24s;
+    position:relative;overflow:hidden;
+  }
+  .gcard::before{
+    content:"";position:absolute;inset:0 0 auto 0;height:4px;background:var(--g-color);
+    opacity:.85;
+  }
+  .gcard:hover{transform:translateY(-5px);box-shadow:0 18px 38px rgba(30,41,59,.11)}
+  .g-head{display:flex;align-items:center;gap:9px;margin-bottom:11px}
+  .g-ico{
+    width:34px;height:34px;border-radius:12px;display:grid;place-items:center;font-size:17px;
+    background:color-mix(in srgb,var(--g-color) 13%,#fff);
+  }
+  .g-t{font-size:14px;font-weight:700;line-height:1.35}
+  .g-s{font-size:11px;color:var(--text-3);line-height:1.35}
+  /* 迷你对话预览条 —— 一眼看出"这是个对话窗口" */
+  .g-prev{display:flex;flex-direction:column;gap:6px;margin:2px 0 11px}
+  .g-line{display:flex;align-items:center;gap:7px}
+  .g-line.r{flex-direction:row-reverse}
+  .g-av{
+    width:19px;height:19px;border-radius:7px;flex-shrink:0;display:grid;place-items:center;
+    font-size:9px;font-weight:700;color:#fff;background:var(--g-color);
+  }
+  .g-line.r .g-av{background:#cbd5e1}
+  .g-bub{
+    height:20px;border-radius:8px;background:var(--line-soft);flex:1;max-width:78%;
+    display:flex;align-items:center;padding:0 9px;font-size:10.5px;color:var(--text-3);
+    overflow:hidden;white-space:nowrap;
+  }
+  .g-line.r .g-bub{
+    background:color-mix(in srgb,var(--g-color) 16%,#fff);color:var(--g-color);font-weight:600
+  }
+  .g-go{font-size:11.5px;color:var(--g-color);font-weight:700;display:flex;align-items:center;gap:5px}
+
+  /* ── 消息 ── */
+  .msg{display:flex;gap:12px}
+  .msg.user{flex-direction:row-reverse}
+  .avatar{
+    width:32px;height:32px;border-radius:11px;flex-shrink:0;display:grid;place-items:center;
+    font-size:14px;font-weight:700;
+  }
+  .msg.user .avatar{background:#e9eef7;color:var(--text-2)}
+  .msg.bot .avatar{
+    background:linear-gradient(135deg,var(--brand),var(--brand-2));color:#fff;
+    box-shadow:0 6px 14px rgba(var(--brand-rgb),.26);transition:background .4s
+  }
+  .body{min-width:0;flex:1;max-width:calc(100% - 44px)}
+  .msg.user .body{display:flex;justify-content:flex-end}
+  .bubble{
+    display:inline-block;padding:12px 16px;border-radius:18px;font-size:14px;word-break:break-word;
+    box-shadow:var(--sh);
+  }
+  .msg.user .bubble{background:var(--brand);color:#fff;border-bottom-right-radius:6px;
+    transition:background .4s}
+  .msg.bot .bubble{background:#fff;border:1px solid var(--line);border-bottom-left-radius:6px}
+  .msg.bot .bubble.no-hit{background:var(--warn-soft);border-color:#f5dfb8}
+  .msg.bot .bubble.err{background:var(--err-soft);border-color:#f8d0cd}
+  .bubble p{margin:0 0 8px} .bubble p:last-child{margin-bottom:0}
+  .bubble ol,.bubble ul{margin:6px 0 8px;padding-left:20px}
+  .bubble li{margin:3px 0}
+  .bubble code{background:var(--line-soft);padding:1px 6px;border-radius:6px;
+    font-size:12.5px;font-family:var(--mono)}
+  .bubble strong{font-weight:700}
+
+  /* 来源 */
+  .sources{margin-top:12px}
+  .src-toggle{
+    display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--text-2);
+    background:#fff;border:1px solid var(--line);border-radius:11px;padding:6px 12px;
+    cursor:pointer;transition:.18s;font-family:inherit;
+  }
+  .src-toggle:hover{border-color:rgba(var(--brand-rgb),.45);color:var(--brand)}
+  .src-list{display:none;margin-top:10px;gap:9px;flex-direction:column}
+  .src-list.open{display:flex}
+  .src{background:#fff;border:1px solid var(--line);border-radius:16px;padding:12px 14px;font-size:12.5px}
+  .src-head{display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:11.5px}
+  .src-head .name{color:var(--text);font-weight:700;flex:1;min-width:0;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .src-from{color:var(--text-3);white-space:nowrap;max-width:150px;
+    overflow:hidden;text-overflow:ellipsis}
+  .src-badge{font-size:10.5px;padding:1px 8px;border-radius:6px;font-weight:700;white-space:nowrap}
+  .src-text{color:var(--text-2);white-space:pre-wrap;line-height:1.7;max-height:200px;overflow-y:auto}
+
+  /* 决策链 */
+  .trace{margin-top:10px}
+  .trace-toggle{
+    display:inline-flex;align-items:center;gap:6px;font-size:11.5px;color:var(--text-3);
+    background:none;border:none;cursor:pointer;padding:3px 2px;font-family:inherit;
+  }
+  .trace-toggle:hover{color:var(--brand)}
+  .trace-body{
+    display:none;margin-top:8px;background:#fff;border:1px solid var(--line);
+    border-radius:14px;padding:13px;font-size:11.5px;font-family:var(--mono);
+    line-height:1.8;color:var(--text-2);overflow-x:auto;
+  }
+  .trace-body.open{display:block}
+  .trace-body .h{color:var(--brand);font-weight:700}
+  .trace-body .s{color:var(--text-3)}
+  .trace-body table{border-collapse:collapse;width:100%;margin:4px 0}
+  .trace-body td{padding:1.5px 8px 1.5px 0}
+  .trace-body td.n{color:var(--text-3)}
+
+  .meta{font-size:11.5px;color:var(--text-3);margin-top:7px;padding-left:2px}
+
+  /* 参考资料里的图：紧跟在它所属的那段文字下面（图文一一对应） */
+  .src-imgs{display:flex;flex-wrap:wrap;gap:7px;margin:8px 0 4px}
+  .src-img{
+    width:96px;height:76px;object-fit:contain;border-radius:11px;border:1px solid var(--line);
+    background:#fff;cursor:zoom-in;transition:.18s;
+  }
+  .src-img:hover{border-color:rgba(var(--brand-rgb),.4)}
+
+  /* 灯箱 */
+  .lightbox{
+    position:fixed;inset:0;background:rgba(15,23,42,.84);z-index:9999;
+    display:flex;align-items:center;justify-content:center;padding:36px;cursor:zoom-out;
+    animation:fade .18s ease;backdrop-filter:blur(3px);
+  }
+  .lightbox img{max-width:100%;max-height:100%;border-radius:16px;background:#fff;padding:7px;
+    box-shadow:0 24px 70px rgba(0,0,0,.45)}
+  @keyframes fade{from{opacity:0}to{opacity:1}}
+
+  .status-line{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--text-3);padding:8px 2px}
+  .spinner{width:13px;height:13px;border:2px solid rgba(var(--brand-rgb),.28);
+    border-top-color:var(--brand);border-radius:50%;animation:spin .7s linear infinite;flex-shrink:0}
+  @keyframes spin{to{transform:rotate(360deg)}}
+
+  /* 输入区 */
+  .composer{flex-shrink:0;padding:14px 24px 20px;
+    background:linear-gradient(to top,var(--bg) 60%,rgba(246,248,253,0))}
+  .composer-inner{
+    max-width:860px;margin:0 auto;background:#fff;border:1px solid var(--line);
+    border-radius:22px;padding:10px 10px 10px 18px;display:flex;align-items:flex-end;gap:10px;
+    box-shadow:var(--sh);transition:.2s;
+  }
+  .composer-inner:focus-within{
+    border-color:rgba(var(--brand-rgb),.45);
+    box-shadow:0 0 0 4px rgba(var(--brand-rgb),.10),var(--sh)
+  }
+  #input{flex:1;border:none;outline:none;resize:none;font-family:inherit;font-size:14px;
+    line-height:1.65;max-height:136px;background:transparent;color:var(--text);padding:5px 0}
+  #input::placeholder{color:var(--text-3)}
+  #send{
+    width:38px;height:38px;border-radius:14px;border:none;color:#fff;cursor:pointer;
+    display:grid;place-items:center;flex-shrink:0;transition:.2s;
+    background:linear-gradient(135deg,var(--brand),var(--brand-2));
+    box-shadow:0 6px 16px rgba(var(--brand-rgb),.30);
+  }
+  #send:hover:not(:disabled){transform:translateY(-2px);
+    box-shadow:0 10px 22px rgba(var(--brand-rgb),.38)}
+  #send:disabled{background:#cbd5e1;box-shadow:none;cursor:not-allowed;transform:none}
+  .foot{max-width:860px;margin:9px auto 0;font-size:11px;color:var(--text-3);text-align:center}
+
+  ::-webkit-scrollbar{width:9px;height:9px}
+  ::-webkit-scrollbar-thumb{background:#d8dee9;border-radius:6px;
+    border:2px solid transparent;background-clip:content-box}
+  ::-webkit-scrollbar-thumb:hover{background:#c3cbd9;background-clip:content-box}
+  ::-webkit-scrollbar-track{background:transparent}
+
+  @media(max-width:880px){
+    .sidebar{display:none}
+    .samples,.grid{grid-template-columns:1fr}
+    .messages,.composer{padding-left:14px;padding-right:14px}
+  }
+  /* ══════════════════════════════════════════════════════════
+     配色升级 —— 只换颜色，不动版式
+     取参考图的主色：青绿 → 湖蓝，白色面板，淡蓝灰打底。
+     助手各自的主题色（--brand / --e-color）照旧生效。
+     想退回原配色，把这一整段删掉即可。
+     ══════════════════════════════════════════════════════════ */
+
+  /* 底色：淡蓝灰渐变（原来是纯白 + 两团光斑） */
+  body{background:linear-gradient(160deg,#e9f0f9 0%,#f4f7fb 46%,#eef5fa 100%)}
+  body::before{background:radial-gradient(circle,rgba(63,169,212,.16),transparent 68%)}
+  body::after{background:radial-gradient(circle,rgba(42,179,160,.16),transparent 68%)}
+
+  /* 侧栏：纯白不透明（原来是半透明 + 毛玻璃） */
+  .sidebar{background:#fff;backdrop-filter:none;border-right:1px solid #e8eef6}
+
+  /* 导航项：整条圆角胶囊。未选中的也要用**自己主色的半透明底**衬一层 ——
+     纯白一片（一点颜色没有）看着太空；选中项再填满实心渐变。 */
+  .entry{
+    border-radius:13px;box-shadow:none;
+    background:color-mix(in srgb,var(--e-color,var(--brand)) 13%,transparent);
+    border:1px solid color-mix(in srgb,var(--e-color,var(--brand)) 20%,transparent);
+  }
+  .entry::before{display:none}
+  .entry:hover{
+    transform:none;box-shadow:none;
+    background:color-mix(in srgb,var(--e-color,var(--brand)) 21%,transparent);
+    border-color:color-mix(in srgb,var(--e-color,var(--brand)) 32%,transparent);
+  }
+  /* 图标方块改成白底：底衬已经带色了，图标再用同色就糊成一片了 */
+  .entry .e-ico{background:#fff;box-shadow:0 2px 7px rgba(30,41,59,.07)}
+  /* 当前项高亮：默认用这一条**自己的主色**做"深→本色→浅"渐变，
+     进哪个助手的页，侧栏那条就跟着那个助手的颜色走。
+     （原来固定成青绿渐变，结果在绿色/橘色的助手页里会拖一截蓝尾巴。） */
+  .entry.is-cur{
+    background:linear-gradient(115deg,
+      color-mix(in srgb,var(--e-color) 84%,#000) 0%,
+      var(--e-color) 52%,
+      color-mix(in srgb,var(--e-color) 76%,#fff) 100%);
+    border-color:transparent;
+    box-shadow:0 9px 22px color-mix(in srgb,var(--e-color) 30%,transparent);
+  }
+  /* 「自动」那条没有专属主色，单独用参考图那条绿 → 青 → 蓝渐变 */
+  .entry.is-cur.is-auto{
+    background:linear-gradient(115deg,#1e9e5f 0%,#2fb8a4 48%,#46b6d8 100%);
+    box-shadow:0 9px 22px rgba(47,184,164,.26);
+  }
+  .entry.is-cur .e-n{color:#fff}
+  .entry.is-cur .e-d{color:rgba(255,255,255,.86)}
+  .entry.is-cur .e-ico{background:rgba(255,255,255,.22)}
+  .entry.is-cur .e-arr{color:#fff}
+  .entry.is-cur .e-n .tick{background:rgba(255,255,255,.26);color:#fff}
+
+  /* 顶栏：白底、描边更淡 */
+  .topbar{background:rgba(255,255,255,.94);backdrop-filter:blur(8px);border-bottom-color:#e8eef6}
+
+  /* ══════════════════════════════════════════════════════════
+     版式：顶部信息卡 + 左「常见问题」+ 右对话
+     ══════════════════════════════════════════════════════════ */
+
+  /* 顶部信息卡（原来是 58px 的细状态条） */
+  .topbar{
+    height:auto;flex-shrink:0;margin:14px 16px 0;padding:13px 18px;
+    border-radius:18px;border:1px solid #e9eef6;background:#fff;backdrop-filter:none;
+    box-shadow:0 4px 14px rgba(30,41,59,.05);
+    display:flex;align-items:center;gap:12px;
+  }
+  .tb-ico{
+    width:46px;height:46px;border-radius:14px;flex-shrink:0;display:grid;place-items:center;
+    font-size:23px;background:linear-gradient(135deg,var(--brand),var(--brand-2));
+    box-shadow:0 8px 18px rgba(var(--brand-rgb),.28);
+    transition:background .4s,box-shadow .4s;
+  }
+  .tb-txt{min-width:0}
+  .tb-title{font-size:17px;font-weight:800;color:var(--brand);line-height:1.35;transition:color .4s}
+  .tb-sub{
+    font-size:11.5px;color:var(--text-3);margin-top:1px;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:560px;
+  }
+  /* 首页（自动路由）顶部不放「常见问题」入口 —— 那里没有锁定的知识库，
+     左侧那栏是空的，入口放上去点了会扑空。单个助手页才显示这个按钮。 */
+  .tb-faq{
+    display:inline-flex;align-items:center;gap:6px;flex-shrink:0;
+    padding:6px 13px;border-radius:999px;font-family:inherit;font-size:12.5px;
+    font-weight:700;cursor:pointer;transition:.18s;
+    color:var(--brand-deep);background:color-mix(in srgb,var(--brand) 12%,#fff);
+    border:1px solid color-mix(in srgb,var(--brand) 30%,#fff);
+  }
+  .tb-faq:hover{background:color-mix(in srgb,var(--brand) 22%,#fff)}
+  .tb-faq[hidden]{display:none !important}
+
+  /* 两栏舞台 */
+  .stage{flex:1;display:flex;gap:16px;padding:14px 16px 16px;min-height:0}
+
+  /* 左列：常见问题（首页自动路由时不显示） */
+  .faq{
+    width:208px;flex-shrink:0;display:flex;flex-direction:column;gap:10px;
+    background:#fff;border:1px solid #e9eef6;border-radius:18px;padding:14px 13px;
+    box-shadow:0 4px 14px rgba(30,41,59,.05);overflow-y:auto;
+  }
+  /* 收起态：不是 display:none，而是把宽度收成 0（有过渡，看着像滑进去），
+     这样顶部「常见问题」按钮才能来回开关。 */
+  .faq{
+    transition:width .26s ease,opacity .18s ease,padding .26s ease,margin .26s ease;
+  }
+  .faq[hidden]{display:none !important}
+  .stage.no-faq .faq{
+    width:0;opacity:0;padding-left:0;padding-right:0;overflow:hidden;
+    border-width:0;
+  }
+  .stage.no-faq{gap:0}
+  .faq-h{
+    display:flex;align-items:center;gap:7px;font-size:13px;font-weight:800;
+    padding-bottom:10px;border-bottom:1px solid var(--line-soft);
+  }
+  .faq-list{display:flex;flex-direction:column;gap:9px}
+  /* 二级菜单：一级分组可折叠，展开后露出二级子项 */
+  .faq-group{display:flex;flex-direction:column;gap:7px}
+  .fg-head{
+    display:flex;align-items:center;gap:8px;padding:9px 11px;border-radius:11px;
+    font-size:12.5px;font-weight:700;color:var(--brand-deep);cursor:pointer;
+    background:color-mix(in srgb,var(--brand) 14%,#fff);
+    border:1px solid color-mix(in srgb,var(--brand) 22%,#fff);
+    transition:.18s;user-select:none;
+  }
+  .fg-head:hover{background:color-mix(in srgb,var(--brand) 22%,#fff)}
+  .fg-head .fg-t{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .fg-head .fg-arr{flex-shrink:0;font-size:9px;opacity:.55;transition:transform .22s}
+  .faq-group.open .fg-head .fg-arr{transform:rotate(180deg)}
+
+  .fg-body{
+    display:grid;gap:7px;padding-left:12px;
+    max-height:0;opacity:0;overflow:hidden;
+    transition:max-height .26s ease,opacity .2s ease;
+  }
+  .faq-group.open .fg-body{max-height:460px;opacity:1}
+
+  /* 二级子项：小圆点 + 短标签；悬停时高亮成"选中"的样子 */
+  .faq-item{
+    display:flex;align-items:center;gap:7px;padding:8px 11px;border-radius:10px;
+    font-size:12px;line-height:1.45;cursor:pointer;text-align:left;
+    color:var(--text-2);background:#f6f9fc;border:1px solid #eef2f8;
+    white-space:nowrap;overflow:hidden;transition:.16s;
+  }
+  .faq-item:hover{
+    color:var(--brand-deep);
+    background:color-mix(in srgb,var(--brand) 15%,#fff);
+    border-color:color-mix(in srgb,var(--brand) 48%,#fff);
+  }
+  .faq-item .fi-dot{flex-shrink:0;color:var(--brand);opacity:.6}
+  .faq-item .fi-t{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
+
+  /* 右列：对话面板 */
+  .chat-col{
+    flex:1;min-width:0;display:flex;flex-direction:column;overflow:hidden;
+    background:#fff;border:1px solid #e9eef6;border-radius:18px;
+    box-shadow:0 4px 14px rgba(30,41,59,.05);
+  }
+  .messages{padding:18px 18px 6px}
+  /* 底部留白多一点：输入框整体往上提，不再贴着卡片下沿 */
+  .composer{padding:10px 16px 22px;border-top:1px solid var(--line-soft);background:#fff}
+  .composer-inner{max-width:none;border-radius:16px;box-shadow:none;background:#fff}
+  .foot{max-width:none;margin:8px auto 0}
+
+  /* 输入框右侧的「清空」 */
+  .clear-btn{
+    flex-shrink:0;padding:8px 16px;border-radius:999px;font-family:inherit;font-size:12.5px;
+    color:var(--text-2);background:#fff;border:1px solid var(--line);cursor:pointer;transition:.18s;
+  }
+  .clear-btn:hover{border-color:color-mix(in srgb,var(--brand) 45%,#fff);color:var(--brand)}
+  .clear-btn[hidden]{display:none !important}
+
+  @media(max-width:900px){
+    .faq{display:none}
+    .stage{padding:12px}
+    .topbar{margin:12px 12px 0;padding:11px 14px}
+  }
+
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- ══ 侧栏 ══ -->
+  <aside class="sidebar">
+    <a class="brand" href="/">
+      <div class="brand-logo" id="brand-logo">🎓</div>
+      <div>
+        <div class="brand-name" id="brand-name">校园智能助手</div>
+        <div class="brand-sub" id="brand-school" hidden></div>
+      </div>
+      <!-- 校园地图入口：管理端配了地址才会出现 -->
+      <span class="map-btn" id="map-btn" hidden title="校园地图">📍</span>
+    </a>
+
+    <div class="card">
+      <div class="card-title">小助手（点击进入专属对话）</div>
+      <div class="entries" id="entries">
+        <div class="hint">加载中…</div>
+      </div>
+    </div>
+
+    <div class="me" id="me">
+      <span class="me-dot"></span>
+      <span class="me-txt" id="me-txt">加载中…</span>
+      <button class="me-out" id="logout" type="button" title="退出登录，回到门户">退出</button>
+    </div>
+
+    <!-- 只有管理账号才看得见这道门；学生账号在这里是无权的 -->
+    <button class="back lock-entry" id="admin-entry" type="button" hidden>
+      <span class="lk">🗂</span><span>进入管理端</span>
+    </button>
+  </aside>
+
+  <!-- ══ 主区 ══ -->
+  <main class="main">
+    <!-- 顶部信息卡：助手图标 + 名字 + 一句话介绍（右边是返回入口和几个装饰小图标） -->
+    <div class="topbar">
+      <div class="tb-ico" id="tb-ico">🎓</div>
+      <div class="tb-txt">
+        <div class="tb-title" id="tb-title">校园智能助手</div>
+        <div class="tb-sub" id="tb-sub">按问题类型自动切换小助手</div>
+      </div>
+      <span class="spacer"></span>
+      <button class="tb-faq" id="faq-toggle" type="button" hidden>💡 常见问题</button>
+      <span class="lbl" id="top-right"></span>
+    </div>
+
+    <div class="stage">
+      <!-- 左列：常见问题（只在单个助手页出现，首页自动路由时不显示） -->
+      <aside class="faq" id="faq" hidden>
+        <div class="faq-h"><span>💡</span><span>常见问题</span></div>
+        <div class="faq-list" id="faq-list"></div>
+      </aside>
+
+      <!-- 右列：对话 -->
+      <div class="chat-col">
+        <div class="messages" id="messages">
+          <div class="wrap" id="wrap">
+            <div class="empty" id="empty">
+              <div class="empty-icon" id="empty-icon">🎓</div>
+              <h2 id="empty-title">你好，我是校园智能助手</h2>
+              <div class="sub" id="empty-sub">按问题类型自动切换到对应的小助手，给你可追溯的答案。</div>
+              <div class="grid-title" id="sample-title">或者，直接试试这些</div>
+              <div class="samples" id="samples"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="composer">
+          <div class="composer-inner">
+            <textarea id="input" rows="1" placeholder="输入你的问题…"></textarea>
+            <button class="clear-btn" id="clear-chat" type="button" hidden>清空</button>
+            <button id="send" title="发送">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                   stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="22" y1="2" x2="11" y2="13"></line>
+                <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+              </svg>
+            </button>
+          </div>
+          <div class="foot" id="foot">本地推理 · 回答全程流式输出 · 知识库内容实时检索</div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  /* ══════════════════════════════════════════════════════════
+     1. 主题表 —— 每个助手一套独立的配色与文案
+        不是"换个颜色了事"：标题、副标题、示例问题、输入框提示、
+        侧栏小贴士、主色、背景光晕，全部单独写。
+     ══════════════════════════════════════════════════════════ */
+  const AUTO_THEME = {
+    key: "__auto__", name: "自动路由", emoji: "🎓",
+    brand: "#2ab3a0", rgb: "42,179,160", brand2: "#3fa9d4",
+    glow1: "rgba(63,169,212,.26)", glow2: "rgba(42,179,160,.20)",
+    title: "你好，我是校园智能助手",
+    sub: "按问题类型自动切换到对应的小助手，给你可追溯的答案。",
+    placeholder: "想问点什么？比如「奖学金怎么申请」…",
+    label: "路由 · 自动",
+    samples: [
+      { i: "🎯", t: "奖学金怎么申请？" },
+      { i: "🧮", t: "绩点是怎么计算的？", m: "绩点计算规则" },
+      { i: "📦", t: "学校快递地址在哪？" },
+      { i: "🎒", t: "新生报到需要带什么材料？", m: "报到材料" },
+    ],
+    tips: [
+      "提问后系统会先<b>自动判断</b>该问哪个助手，再在其专属知识库中检索。",
+      "回答只依据知识库内容生成，资料里没有的会明确告知，不编造。",
+      "点回答下方的<b>决策链</b>可查看路由依据与检索证据。",
+      "需要维护知识库？去 <b>管理端</b>。",
+    ],
+  };
+
+  const THEMES = {
+    "伴学": {
+      name: "伴学", emoji: "🧑‍🎓", desc: "学习搭子",
+      brand: "#3b82f6", rgb: "59,130,246", brand2: "#60a5fa",
+      glow1: "rgba(96,165,250,.28)", glow2: "rgba(59,130,246,.20)",
+      title: "你的学习搭子，来了 🧑‍🎓",
+      sub: "绩点、选课、补考缓考、第二课堂……学业上的事，问我就行。",
+      placeholder: "学业问题丢过来，比如「绩点怎么算」…",
+      samples: [
+        { i: "🧮", t: "绩点是怎么计算的？", m: "绩点计算规则" },
+        { i: "📈", t: "成绩在哪里可以查询？", m: "成绩查询" },
+        { i: "🔁", t: "补考、缓考、重修分别怎么走流程？", m: "补考缓考重修" },
+        { i: "📕", t: "挂科会有什么影响？", m: "挂科影响" },
+        { i: "📚", t: "选课有什么要注意的？", m: "选课注意事项" },
+        { i: "🗓", t: "在哪里查看课表？", m: "课表查看" },
+        { i: "🏅", t: "第二课堂学分怎么获得？", m: "第二课堂学分" },
+        { i: "🎓", t: "毕业需要修满多少学分？", m: "学分要求" },
+        { i: "💴", t: "奖学金怎么申请？", m: "奖学金申请" },
+        { i: "🏆", t: "学校有哪些奖学金和评优项目？", m: "奖助项目" },
+        { i: "📦", t: "学校的快递地址是什么？", m: "快递地址" },
+        { i: "🍜", t: "食堂有什么好吃的推荐？", m: "食堂推荐" },
+      ],
+      faq: [
+        { c: "成绩与绩点", items: [0, 1] },
+        { c: "考试与重修", items: [2, 3] },
+        { c: "选课与课表", items: [4, 5] },
+        { c: "学分与第二课堂", items: [6, 7] },
+        { c: "奖助与评优", items: [8, 9] },
+        { c: "校园生活", items: [10, 11] },
+      ],
+      tips: [
+        "这里只聊<b>学业相关</b>：绩点、考试、选课、学分、教务流程。",
+        "数字类信息（分数、比例、时限）我会<b>原样引用</b>资料，不改写。",
+        "资料里没写的，我会直接说没有，不猜。",
+      ],
+    },
+    "招生": {
+      name: "招生", emoji: "🏫", desc: "报考向导",
+      brand: "#f59e0b", rgb: "245,158,11", brand2: "#fbbf24",
+      glow1: "rgba(251,191,36,.30)", glow2: "rgba(245,158,11,.20)",
+      title: "选学校、挑专业，我陪你 🏫",
+      sub: "招生章程、录取分数、学院与专业介绍 —— 报考要的信息都在这。",
+      placeholder: "想了解哪个学院或哪年分数线？…",
+      samples: [
+        { i: "🎓", t: "考生报考需要满足什么基本条件？", m: "报考条件" },
+        { i: "🏫", t: "学校的性质和办学层次是什么？", m: "学校性质" },
+        { i: "📋", t: "普通类专业是怎么录取的？", m: "录取规则" },
+        { i: "⚖️", t: "投档总分相同时怎么排序？", m: "同分排序" },
+        { i: "🎯", t: "2026年计划招多少人？", m: "招生规模" },
+        { i: "🗺", t: "分省分专业的招生计划怎么公布？", m: "计划公布" },
+        { i: "🔀", t: "服从专业调剂的考生会怎么处理？", m: "专业调剂" },
+        { i: "📜", t: "招生章程里有哪些要特别注意的？", m: "章程要点" },
+        { i: "🏛", t: "学校一共有哪些学院？", m: "学院总览" },
+        { i: "📚", t: "学校开设了哪些专业？", m: "专业设置" },
+        { i: "🧑‍🏫", t: "学校有哪些师范类专业？", m: "师范专业" },
+        { i: "⭐", t: "省级一流专业有哪些？", m: "一流专业" },
+      ],
+      faq: [
+        { c: "报考与学校", items: [0, 1] },
+        { c: "录取规则", items: [2, 3] },
+        { c: "招生计划", items: [4, 5] },
+        { c: "章程与调剂", items: [6, 7] },
+        { c: "学院与专业", items: [8, 9] },
+        { c: "专业特色", items: [10, 11] },
+      ],
+      tips: [
+        "分数线、计划数这类数据我<b>严格照抄资料</b>，不会四舍五入。",
+        "不同省份、不同年份差别很大，问题里带上省份和年份更准。",
+        "资料没覆盖的年份，我会明确告诉你没有。",
+      ],
+    },
+    "答疑": {
+      name: "答疑", emoji: "🧭", desc: "校园百科",
+      brand: "#14b8a6", rgb: "20,184,166", brand2: "#2dd4bf",
+      glow1: "rgba(45,212,191,.28)", glow2: "rgba(52,211,153,.20)",
+      title: "校园里的杂事，问我 🧭",
+      sub: "快递在哪取、食堂哪个好吃、社团怎么加、哪栋楼怎么走 —— 生活琐事一网打尽。",
+      placeholder: "校园生活问题，比如「快递地址」…",
+      samples: [
+        { i: "📦", t: "学校的快递地址是什么？", m: "快递地址" },
+        { i: "🎭", t: "学校有哪些社团？", m: "社团一览" },
+        { i: "🍜", t: "食堂有什么好吃的推荐？", m: "食堂推荐" },
+        { i: "🏢", t: "学校有哪些主要建筑？", m: "校园建筑" },
+      ],
+      faq: [
+        { c: "生活服务", items: [0, 2] },
+        { c: "校园向导", items: [1, 3] },
+      ],
+      tips: [
+        "这里是<b>生活向</b>百科：吃住行、社团活动、校园设施。",
+        "带图的问题，我会把资料里的<b>相关图片</b>一并列出来。",
+        "找不到答案时，建议换个说法再问一次。",
+      ],
+    },
+    "迎新": {
+      name: "迎新", emoji: "🌟", desc: "新生向导",
+      brand: "#22c55e", rgb: "34,197,94", brand2: "#4ade80",
+      glow1: "rgba(74,222,128,.28)", glow2: "rgba(34,197,94,.20)",
+      title: "欢迎新同学 🌟",
+      sub: "报到要带什么、宿舍怎么安排、学费怎么交、军训多久 —— 入学这一程我全程陪。",
+      placeholder: "新生问题都可以问，比如「报到要带什么」…",
+      samples: [
+        { i: "📌", t: "新生报到需要带什么材料？", m: "报到材料" },
+        { i: "📝", t: "新生报到的流程是怎样的？", m: "报到流程" },
+        { i: "🛏", t: "新生住宿是怎么安排的？", m: "住宿安排" },
+        { i: "🧳", t: "住宿舍有哪些要注意的？", m: "宿舍须知" },
+        { i: "💰", t: "学费和住宿费怎么缴纳？", m: "缴费方式" },
+        { i: "🕒", t: "缴费有截止时间吗？", m: "缴费时间" },
+        { i: "🎖", t: "军训大概多长时间？", m: "军训时长" },
+        { i: "🩺", t: "新生体检是怎么安排的？", m: "体检安排" },
+        { i: "🛡", t: "新生入学要注意哪些安全事项？", m: "安全提示" },
+        { i: "🏦", t: "助学贷款怎么申请？", m: "助学贷款" },
+        { i: "📞", t: "学校各部门的办公电话在哪查？", m: "办公电话" },
+        { i: "📖", t: "专业的人才培养方案包含什么内容？", m: "培养方案" },
+      ],
+      faq: [
+        { c: "报到与材料", items: [0, 1] },
+        { c: "住宿须知", items: [2, 3] },
+        { c: "缴费须知", items: [4, 5] },
+        { c: "军训与体检", items: [6, 7] },
+        { c: "安全与资助", items: [8, 9] },
+        { c: "入学服务", items: [10, 11] },
+      ],
+      tips: [
+        "这里专门服务<b>新生入学</b>：报到、住宿、缴费、体检、贷款。",
+        "报到当天要用的材料，我会按资料<b>逐条列清楚</b>。",
+        "有截止日期的，记得留意资料里的时间。",
+      ],
+    },
+  };
+
+  // 没在主题表里的助手（管理端新建的）→ 用这套兜底配色
+  const FALLBACK_PALETTE = [
+    { brand: "#0284c7", rgb: "2,132,199", brand2: "#38bdf8" },
+    { brand: "#7c3aed", rgb: "124,58,237", brand2: "#a78bfa" },
+    { brand: "#059669", rgb: "5,150,105", brand2: "#34d399" },
+    { brand: "#d97706", rgb: "217,119,6", brand2: "#fbbf24" },
+    { brand: "#db2777", rgb: "219,39,119", brand2: "#f472b6" },
+  ];
+
+  function themeFor(name, index) {
+    if (!name) return AUTO_THEME;
+    if (THEMES[name]) return THEMES[name];
+    const p = FALLBACK_PALETTE[(index || 0) % FALLBACK_PALETTE.length];
+    return Object.assign({}, AUTO_THEME, {
+      name: name, emoji: "🤖", desc: "小助手",
+      brand: p.brand, rgb: p.rgb, brand2: p.brand2,
+      glow1: `rgba(${p.rgb},.28)`, glow2: "rgba(52,211,153,.18)",
+      title: `你好，我是${name}助手`,
+      sub: "有什么可以帮你的？",
+      placeholder: `向「${name}」提问…`,
+      samples: [
+        { i: "❓", t: "你能帮我做什么？" },
+        { i: "📄", t: "这个知识库里都有什么资料？" },
+      ],
+      tips: ["这个助手还没有专属主题，正在使用<b>兜底配色</b>。",
+             "它由管理端上传的资料自动归类生成，可在管理端查看或删除。"],
+    });
+  }
+
+  /* ── 当前页面决定模式 ─────────────── */
+  const m = location.pathname.match(/^\/student\/(.+)$/);
+  const CURRENT = m ? decodeURIComponent(m[1]) : null;     // null = 自动模式
+  let currentTheme = themeFor(CURRENT, 0);
+  let assistantMap = {};      // name -> {display_name, color, ...}
+  let orderMap = {};          // name -> 主题序号
+  // 助手总数：-1 表示"还没拉到"（此时先乐观显示，避免闪一下）
+  let assistantCount = -1;
+  let SCHOOL = "";                 // 登录身份里的校名，顶部信息卡的标题要用
+  // 左侧「常见问题」菜单：由服务端从知识库自动生成（每题都经过可答性校验）。
+  // 拿到就用它，拿不到（或该助手还没生成）就退回本文件里内置的那套。
+  let FAQ_REMOTE = {};
+
+  /* 常见问题栏的收起/展开：
+     收起时不是 display:none —— 那样会让整页重新排版、看着很跳；
+     而是给 .stage 挂 no-faq，把左列宽度收成 0（有过渡动画）。
+     状态存 localStorage，换个助手页也保持一致。 */
+  function collapsedFaq() {
+    try { return localStorage.getItem("faqCollapsed") === "1"; } catch (e) { return false; }
+  }
+  function setStageFaq(show) {
+    const s = document.querySelector(".stage");
+    if (s) s.classList.toggle("no-faq", !show);
+    const f = $("faq");
+    if (f) f.classList.toggle("collapsed", !show);
+    const b = $("faq-toggle");
+    if (b) {
+      b.textContent = show ? "💡 常见问题" : "💡 展开常见问题";
+      b.title = show ? "收起左侧常见问题" : "展开左侧常见问题";
+    }
+    try { localStorage.setItem("faqCollapsed", show ? "0" : "1"); } catch (e) { /* 隐私模式忽略 */ }
+  }
+
+  /* 左侧「常见问题」的分组数据，三个来源依次降级：
+     ① 服务端 /api/faq —— 从知识库自动生成，每道题都通过了"答得出来"的检索校验；
+     ② 本文件内置的 theme.faq + theme.samples；
+     ③ 兜底：把 samples 全塞进一组。 */
+  function faqGroupsFor(name, theme) {
+    const remote = FAQ_REMOTE[name];
+    if (remote && remote.groups && remote.groups.length) {
+      return remote.groups.map((g) => ({
+        c: g.c || "常见问题",
+        items: (g.items || []).map((it) => ({ t: it.t, m: it.m || it.t })),
+      }));
+    }
+    const items = (theme && theme.samples) || [];
+    if (theme && theme.faq && theme.faq.length) {
+      return theme.faq.map((g) => ({
+        c: g.c,
+        items: (g.items || []).map((i) => items[i]).filter(Boolean),
+      }));
+    }
+    return [{ c: "常见问题", items }];
+  }
+
+  function applyTheme(theme) {
+    const r = document.documentElement.style;
+    r.setProperty("--brand", theme.brand);
+    r.setProperty("--brand-rgb", theme.rgb);
+    r.setProperty("--brand-2", theme.brand2);
+    r.setProperty("--glow-1", theme.glow1);
+    r.setProperty("--glow-2", theme.glow2);
+
+    $("brand-logo").textContent = theme.emoji;
+    $("brand-name").textContent = CURRENT ? (theme.name + "助手") : "校园智能助手";
+    $("empty-icon").textContent = theme.emoji;
+    $("empty-title").textContent = theme.title;
+    $("empty-sub").textContent = theme.sub;
+    $("input").placeholder = theme.placeholder;
+    $("foot").textContent = CURRENT
+      ? `当前锁定「${theme.name}」知识库 · 回答全程流式输出`
+      : "本地推理 · 回答全程流式输出 · 知识库内容实时检索";
+
+    // 顶部信息卡：图标 + 「{校名}{助手名}小助手」+ 一句话介绍
+    $("tb-ico").textContent = theme.emoji;
+    $("tb-title").textContent = CURRENT ? (SCHOOL + theme.name + "小助手") : "校园智能助手";
+    $("tb-sub").textContent = CURRENT ? theme.sub : "按问题类型自动切换小助手，给你可追溯的答案";
+    $("top-right").innerHTML = CURRENT
+      ? '<a class="back" href="/student">← 自动问答</a>'
+      : '<a class="back" href="/" style="border:none;background:none">🏠 回到首页</a>';
+
+    // 左列二级菜单：一级分组可折叠（点标题展开/收起），二级子项点一下就发完整问题。
+    // 菜单优先用服务端从知识库自动生成的那份（/api/faq，每题都校验过答得出来）；
+    // 没有时退回本文件内置的主题数据。
+    const faq = $("faq");
+    const faqBtn = $("faq-toggle");
+    if (faq) {
+      faq.hidden = !CURRENT;
+      // 首页没有锁定助手，没有菜单可展示 —— 按钮也不出现；
+      // 单个助手页才给这个开关（记忆上一次的收起状态）。
+      if (faqBtn) {
+        faqBtn.hidden = !CURRENT;
+        if (CURRENT) {
+          setStageFaq(!collapsedFaq());
+        }
+      }
+      if (CURRENT) {
+        const groups = faqGroupsFor(CURRENT, theme);
+        $("faq-list").innerHTML = groups.map((g, gi) => {
+          const body = (g.items || []).map((s) => {
+            if (!s || !s.t) return "";
+            return `<div class="faq-item" data-q="${escapeHtml(s.t)}" title="${escapeHtml(s.t)}">` +
+              `<span class="fi-dot">•</span>` +
+              `<span class="fi-t">${escapeHtml(s.m || s.t)}</span></div>`;
+          }).join("");
+          return `<div class="faq-group${gi === 0 ? " open" : ""}">` +
+            `<div class="fg-head"><span class="fg-t">${escapeHtml(g.c)}</span>` +
+            `<span class="fg-arr">▾</span></div>` +
+            `<div class="fg-body">${body}</div></div>`;
+        }).join("");
+      }
+    }
+
+    // 示例问题不再显示：单个助手页已由左侧「常见问题」承担，首页保持留白。
+    // 填充逻辑留着（改成 CURRENT 判断免得引用已删的 auto），哪天想恢复改回来即可。
+    $("sample-title").style.display = "none";
+    $("samples").style.display = "none";
+
+    // 示例问题
+    if (CURRENT) {
+      $("samples").innerHTML = theme.samples.map((s) =>
+        `<div class="sample"><span class="si">${s.i}</span><span class="tx">${escapeHtml(s.t)}</span></div>`
+      ).join("");
+    }
+    document.title = CURRENT ? (theme.name + "助手 · 校园智能助手") : "学生端 · 校园智能助手";
+  }
+
+  /* ══════════════════════════════════════════════════════════
+     2. 通用工具
+     ══════════════════════════════════════════════════════════ */
+  const $ = (id) => document.getElementById(id);
+  const wrap = $("wrap");
+  const messages = $("messages");
+  const input = $("input");
+  const sendBtn = $("send");
+
+  let history = [];
+  let busy = false;
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, (c) => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+    }[c]));
+  }
+
+  function renderMarkdown(text) {
+    const src = escapeHtml(text);
+    let out = "", list = null;
+    for (const raw of src.split("\n")) {
+      const line = raw.trim();
+      const ol = line.match(/^(\d+)[.、)]\s*(.+)$/);
+      const ul = line.match(/^[-*·]\s*(.+)$/);
+      if (ol || ul) {
+        const want = ol ? "ol" : "ul";
+        if (list !== want) { if (list) out += "</" + list + ">"; out += "<" + want + ">"; list = want; }
+        let item = ol ? ol[2] : ul[1];
+        item = item.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+                   .replace(/`([^`]+)`/g, "<code>$1</code>");
+        out += "<li>" + item + "</li>";
+      } else {
+        if (list) { out += "</" + list + ">"; list = null; }
+        if (line) {
+          const t = line.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+                        .replace(/`([^`]+)`/g, "<code>$1</code>");
+          out += "<p>" + t + "</p>";
+        }
+      }
+    }
+    if (list) out += "</" + list + ">";
+    return out || "<p></p>";
+  }
+
+  function colorOf(name) {
+    if (assistantMap[name]) return assistantMap[name].color;
+    const th = themeFor(name, orderMap[name] || 0);
+    return th.brand;
+  }
+  function tint(hex, alpha) {
+    const n = parseInt(hex.slice(1), 16);
+    return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${alpha})`;
+  }
+
+  function nearBottom() {
+    return messages.scrollHeight - messages.scrollTop - messages.clientHeight < 140;
+  }
+  function scrollDown(force) {
+    if (force || nearBottom()) messages.scrollTop = messages.scrollHeight;
+  }
+  /* 欢迎区只藏起来、不删掉 —— 输入框旁的「清空」要把对话清干净再把它还原出来，
+     删了就找不回来了。 */
+  function hideEmpty() { const e = $("empty"); if (e) e.style.display = "none"; }
+  /* 有了对话才显示「清空」 */
+  function showClearBtn() { const b = $("clear-chat"); if (b) b.hidden = false; }
+
+  /* ══════════════════════════════════════════════════════════
+     3. 消息 DOM
+     ══════════════════════════════════════════════════════════ */
+  function addUser(text) {
+    const el = document.createElement("div");
+    el.className = "msg user";
+    el.innerHTML = '<div class="avatar">我</div><div class="body"><div class="bubble"></div></div>';
+    el.querySelector(".bubble").textContent = text;
+    wrap.appendChild(el);
+    showClearBtn();
+    scrollDown(true);
+  }
+
+  function addBot() {
+    const el = document.createElement("div");
+    el.className = "msg bot";
+    el.innerHTML =
+      '<div class="avatar">' + currentTheme.emoji + '</div><div class="body">' +
+      '<div class="status-line"><span class="spinner"></span><span class="st">正在准备…</span></div>' +
+      '<div class="bubble" style="display:none"></div>' +
+      '<div class="sources" style="display:none"></div>' +
+      '<div class="trace" style="display:none"></div>' +
+      '<div class="meta" style="display:none"></div></div>';
+    wrap.appendChild(el);
+    scrollDown(true);
+    return {
+      root: el,
+      statusLine: el.querySelector(".status-line"),
+      st: el.querySelector(".st"),
+      bubble: el.querySelector(".bubble"),
+      sources: el.querySelector(".sources"),
+      trace: el.querySelector(".trace"),
+      meta: el.querySelector(".meta"),
+    };
+  }
+
+  function setStatus(node, text) {
+    node.statusLine.style.display = "flex";
+    node.st.textContent = text;
+    scrollDown();
+  }
+  function clearStatus(node) { node.statusLine.style.display = "none"; }
+
+  /* ── 路由条（已隐藏：直接生成回答，不显示路由信息） ── */
+
+  /* ── 来源 ─────────────────────────── */
+  function showSources(node, list) {
+    if (!list || !list.length) return;
+
+    const hasImg = list.some((s) => (s.images || []).length);
+
+    const items = list.map((s, i) => {
+      const a = s.assistant || "";
+      const badge = a
+        ? `<span class="src-badge" style="background:${tint(colorOf(a), .13)};color:${colorOf(a)}">${escapeHtml(a)}</span>`
+        : "";
+      const sec = s.section ? `<span>${escapeHtml(s.section)}</span>` : "";
+
+      /* 图文一一对应：切片时就把"图片属于哪一段"记在了 layout 里
+         （[{text:"图书馆介绍…", images:["/assets/…/1.jpeg"]}, …]，图片标记跟着
+         它所在的段落走）。所以这里按 layout 逐段渲染，图紧贴它所属的那段文字，
+         不再把整篇的图抽出来堆在末尾。老数据没有 layout 时退化成"整段 + 它的图"。 */
+      const blocks = (s.layout && s.layout.length)
+        ? s.layout
+        : [{ text: s.text, images: s.images || [] }];
+      const body = blocks.map((b) => {
+        const t = (b.text || "").trim();
+        const imgs = (b.images || []).filter(Boolean);
+        if (!t && !imgs.length) return "";
+        return (t ? `<div class="src-text">${escapeHtml(t)}</div>` : "") +
+          (imgs.length
+            ? '<div class="src-imgs">' + imgs.map((u) =>
+                `<img class="src-img" src="${escapeHtml(u)}" loading="lazy"
+                      alt="${escapeHtml(s.source)}" data-full="${escapeHtml(u)}">`).join("") + '</div>'
+            : "");
+      }).join("");
+
+      return '<div class="src">' +
+        `<div class="src-head"><span class="name">[${i + 1}] ${escapeHtml(s.source)}</span>` +
+        `${badge}${sec}</div>` + body + '</div>';
+    }).join("");
+
+    node.sources.innerHTML =
+      `<button class="src-toggle">📎 参考资料 (${list.length})` +
+      `${hasImg ? " · 含图片" : ""} <span>▾</span></button>` +
+      '<div class="src-list">' + items + '</div>';
+    node.sources.style.display = "block";
+    node.sources.querySelectorAll(".src-img").forEach((img) => {
+      img.addEventListener("click", () => openLightbox(img.dataset.full));
+    });
+
+    const btn = node.sources.querySelector(".src-toggle");
+    const listEl = node.sources.querySelector(".src-list");
+    btn.addEventListener("click", () => {
+      const open = listEl.classList.toggle("open");
+      btn.querySelector("span").textContent = open ? "▴" : "▾";
+      scrollDown();
+    });
+  }
+
+  /* ── 图片放大 ─────────────────────── */
+  function openLightbox(url) {
+    const lb = document.createElement("div");
+    lb.className = "lightbox";
+    lb.innerHTML = `<img src="${escapeHtml(url)}" alt="查看大图">`;
+    lb.addEventListener("click", () => lb.remove());
+    document.addEventListener("keydown", function esc(e) {
+      if (e.key === "Escape") { lb.remove(); document.removeEventListener("keydown", esc); }
+    });
+    document.body.appendChild(lb);
+  }
+
+  /* ── 决策链 ───────────────────────── */
+  function showTrace(node, trace, doneData) {
+    if (!trace) return;
+    const route = trace.route || {};
+    const scores = Object.entries(route.scores || {})
+      .sort((a, b) => b[1] - a[1])
+      .map(([n, v]) => {
+        const d = (route.detail || {})[n] || [];
+        const dsc = d[0] != null ? d[0].toFixed(3) : "—";
+        const bst = d[1] != null ? d[1].toFixed(3) : "—";
+        return `<tr><td>${escapeHtml(n)}</td><td>${v.toFixed(3)}</td>
+                <td class="n">描述 ${dsc} / 检索证据 ${bst}</td></tr>`;
+      }).join("");
+
+    const r = trace.retrieve || {};
+    const gen = trace.generate || {};
+
+    node.trace.innerHTML =
+      `<button class="trace-toggle">🔍 决策链 <span>▾</span></button>` +
+      `<div class="trace-body">
+        <div class="h">① 查询改写</div>
+        <div>原始问题：${escapeHtml(trace.question || "")}</div>
+        ${trace.rewritten && trace.rewritten !== trace.question
+          ? `<div>改写结果：${escapeHtml(trace.rewritten)}</div>`
+          : `<div class="s">未触发改写（问题已足够清晰）</div>`}
+        <div class="h" style="margin-top:8px">② 意图路由 · ${escapeHtml(route.mode || "")}</div>
+        <table>${scores || '<tr><td class="s">（无）</td></tr>'}</table>
+        <div class="s">${escapeHtml(route.reason || "")}</div>
+        <div class="h" style="margin-top:8px">③ 检索</div>
+        <div>编码 ${r.encode_ms ?? "—"} ms · 候选 ${r.candidates ?? 0} 条 ·
+             重排 ${r.rerank_ms ?? "—"} ms ${r.rerank_used === false ? "（未启用）" : ""}</div>
+        <div class="h" style="margin-top:8px">④ 生成</div>
+        <div>模型 ${escapeHtml(gen.model || "—")} · 输出 ${gen.chars ?? 0} 字 ·
+             耗时 ${doneData && doneData.elapsed != null ? doneData.elapsed + " s" : "—"}</div>
+      </div>`;
+    node.trace.style.display = "block";
+
+    const btn = node.trace.querySelector(".trace-toggle");
+    const body = node.trace.querySelector(".trace-body");
+    btn.addEventListener("click", () => {
+      const open = body.classList.toggle("open");
+      btn.querySelector("span").textContent = open ? "▴" : "▾";
+      scrollDown();
+    });
+  }
+
+  /* ══════════════════════════════════════════════════════════
+     4. 状态与助手清单
+     ══════════════════════════════════════════════════════════ */
+  async function refreshStatus() {
+    // 常见问题菜单（知识库自动生成）——先拿到它，下面渲染助手时就能直接用
+    try {
+      const f = await fetch("/api/faq").then((r) => r.json());
+      FAQ_REMOTE = f.assistants || {};
+    } catch (e) { /* 拿不到就用内置的那套 */ }
+
+    try {
+      const as = await fetch("/api/assistants").then((r) => r.json());
+      renderAssistants(as);
+    } catch (e) {
+      /* 静默：侧栏的运行状态卡已移除，这里失败不再打断页面 */
+    }
+  }
+
+  function renderAssistants(data) {
+    const list = $("entries");
+    assistantMap = {}; orderMap = {};
+
+    const arr = data.assistants || [];
+    assistantCount = arr.length;
+    arr.forEach((a, i) => {
+      orderMap[a.name] = i;
+      const th = themeFor(a.name, i);
+      a.color = th.brand;
+      a.theme = th;
+      assistantMap[a.name] = a;
+    });
+
+    /* 示例问题的取用顺序：
+       ① 前端为这个助手写好的主题文案（语气贴合该助手）
+       ② 管理端配置里的 samples
+       ③ 兜底一句
+       —— 内置四个助手在 data/assistants.json 里通常没有配置，
+       若不这样处理，宫格里每张卡都会显示同一句默认文案。 */
+    const samplesOf = (a) => {
+      const th = a.theme;
+      if (th && th.samples && th.samples.length) return th.samples.map((x) => x.t);
+      return a.samples || [];
+    };
+
+    // 当前页锁定的助手主题（拿到真实展示名后重新套一次）
+    if (CURRENT) {
+      const mine = arr.find((a) => a.name === CURRENT);
+      currentTheme = mine ? themeFor(CURRENT, orderMap[CURRENT]) : themeFor(CURRENT, 0);
+      applyTheme(currentTheme);
+    }
+
+    /* 侧栏入口卡：四张，各自配色，当前页打勾 */
+    if (!arr.length) {
+      list.innerHTML = '<div class="hint">知识库还是空的 —— 等管理员上传资料后，这里会出现小助手。</div>';
+    } else {
+      list.innerHTML = arr.map((a) => {
+        const th = a.theme;
+        const active = CURRENT === a.name;
+        return `<a class="entry ${active ? "is-cur" : ""}" href="/student/${encodeURIComponent(a.name)}"
+                   style="--e-color:${th.brand}">
+          <span class="e-ico">${th.emoji}</span>
+          <span class="e-i">
+            <span class="e-n">${escapeHtml(a.display_name || a.name)}
+              ${active ? '<span class="tick">当前</span>' : ""}</span>
+            <span class="e-d">${escapeHtml(th.desc || a.scope || "")}</span>
+          </span>
+          <span class="e-arr">›</span>
+        </a>`;
+      }).join("") +
+      `<a class="entry is-auto ${CURRENT ? "" : "is-cur"}" href="/student" style="--e-color:#2ab3a0">
+         <span class="e-ico">🎯</span>
+         <span class="e-i"><span class="e-n">自动路由
+           ${CURRENT ? "" : '<span class="tick">当前</span>'}</span>
+           <span class="e-d">让系统自己判断该问谁</span></span>
+         <span class="e-arr">›</span>
+       </a>`;
+    }
+
+    /* 自动页原来在中间渲染 2×2 的助手入口宫格，按用户要求整块撤掉、中段留白。
+       助手入口没丢 —— 左侧栏的 entries 列表就是同一批，功能不受影响。 */
+
+    /* 自动页的示例问题：从各助手 samples 里挑 */
+    if (!CURRENT) {
+      const pool = [];
+      arr.forEach((a) => samplesOf(a).forEach((s) => pool.push(s)));
+      const uniq = [...new Set(pool)].slice(0, 4);
+      if (uniq.length >= 2) {
+        $("samples").innerHTML = uniq.map((t) =>
+          `<div class="sample"><span class="si">💬</span><span class="tx">${escapeHtml(t)}</span></div>`
+        ).join("");
+      }
+    }
+
+    // 宫格内容刚变过，重新套一次主题（顺带按"有没有助手"决定宫格的显隐）
+    applyTheme(currentTheme);
+  }
+
+  /* ══════════════════════════════════════════════════════════
+     5. 提问与流式接收
+     ══════════════════════════════════════════════════════════ */
+  async function ask(question) {
+    if (busy || !question.trim()) return;
+    busy = true;
+    sendBtn.disabled = true;
+    input.disabled = true;
+    hideEmpty();
+
+    addUser(question);
+    const node = addBot();
+    let answer = "", started = false, doneData = null, trace = null;
+
+    try {
+      const resp = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          question: question, history: history,
+          assistant: CURRENT || "auto",        // 助手页固定锁定，不串味
+        }),
+      });
+      if (!resp.ok || !resp.body) throw new Error("HTTP " + resp.status);
+
+      const reader = resp.body.getReader();
+      const decoder = new TextDecoder("utf-8");
+      let buf = "";
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+        const parts = buf.split("\n\n");
+        buf = parts.pop();
+
+        for (const part of parts) {
+          const line = part.trim();
+          if (!line.startsWith("data:")) continue;
+          let evt;
+          try { evt = JSON.parse(line.slice(5).trim()); } catch (e) { continue; }
+
+          switch (evt.type) {
+            // generate 阶段的状态提示（"正在生成回答…"）已隐藏：首条曾慢、现已 GPU+常驻，
+            // 不再提示慢响应；保留理解/判断/检索等快速阶段提示。
+            case "status":
+              if (evt.stage === "generate") clearStatus(node);
+              else setStatus(node, evt.data);
+              break;
+            case "rewrite": setStatus(node, `问题已改写为「${evt.data.rewritten}」`); break;
+            case "sources": showSources(node, evt.data); break;
+            case "delta":
+              if (!started) {
+                started = true; clearStatus(node);
+                node.bubble.style.display = "inline-block";
+              }
+              answer += evt.data;
+              node.bubble.textContent = answer;
+              scrollDown();
+              break;
+            case "done": {
+              doneData = evt.data || {};
+              trace = doneData.trace;
+              clearStatus(node);
+              if (!started) node.bubble.style.display = "inline-block";
+              if (doneData.no_hit) node.bubble.classList.add("no-hit");
+              showTrace(node, trace, doneData);
+              node.meta.style.display = "block";
+              node.meta.textContent = `耗时 ${doneData.elapsed} 秒`;
+              break;
+            }
+            case "error":
+              clearStatus(node);
+              node.bubble.style.display = "inline-block";
+              node.bubble.classList.add("err");
+              node.bubble.textContent = answer || ("⚠️ " + evt.data);
+              if (answer) node.meta.textContent = "生成中断：" + evt.data;
+              node.meta.style.display = "block";
+              started = true;
+              break;
+          }
+        }
+      }
+    } catch (e) {
+      clearStatus(node);
+      node.bubble.style.display = "inline-block";
+      node.bubble.classList.add("err");
+      node.bubble.textContent = answer || "⚠️ 请求失败：" + e.message;
+      node.meta.style.display = "block";
+    } finally {
+      if (answer && !node.bubble.classList.contains("err")) {
+        node.bubble.innerHTML = renderMarkdown(answer);
+      }
+      scrollDown();
+      busy = false;
+      sendBtn.disabled = false;
+      input.disabled = false;
+      input.focus();
+      if (answer) {
+        history.push({ role: "user", content: question });
+        history.push({ role: "assistant", content: answer });
+        if (history.length > 6) history = history.slice(-6);
+      }
+    }
+  }
+
+  /* ══════════════════════════════════════════════════════════
+     6. 事件绑定
+     ══════════════════════════════════════════════════════════ */
+  sendBtn.addEventListener("click", () => {
+    const q = input.value.trim();
+    input.value = "";
+    input.style.height = "auto";
+    ask(q);
+  });
+
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.shiftKey && !e.isComposing && e.keyCode !== 229) {
+      e.preventDefault();
+      sendBtn.click();
+    }
+  });
+
+  input.addEventListener("input", () => {
+    input.style.height = "auto";
+    input.style.height = Math.min(input.scrollHeight, 136) + "px";
+  });
+
+  // 点示例问题：只取 .tx 的纯文本，不要再把装饰 emoji 当成问题发出去
+  $("samples").addEventListener("click", (e) => {
+    const t = e.target.closest(".sample");
+    if (!t) return;
+    const tx = t.querySelector(".tx");
+    ask((tx ? tx.textContent : t.textContent).trim());
+  });
+
+  /* 左列二级菜单：点标题展开/收起分组；点子项就按这条问题发出去
+     （子项显示的是短标签，完整问题挂在 data-q 上） */
+  /* 顶部「常见问题」按钮：开/关左侧那一栏 */
+  const faqBtn = $("faq-toggle");
+  if (faqBtn) {
+    faqBtn.addEventListener("click", () => {
+      const stage = document.querySelector(".stage");
+      const shown = stage ? !stage.classList.contains("no-faq") : true;
+      setStageFaq(!shown);
+    });
+  }
+
+  const faqList = $("faq-list");
+  if (faqList) {
+    faqList.addEventListener("click", (e) => {
+      const head = e.target.closest(".fg-head");
+      if (head) { head.parentElement.classList.toggle("open"); return; }
+      const it = e.target.closest(".faq-item");
+      if (!it) return;
+      ask((it.dataset.q || "").trim());
+    });
+  }
+
+  /* 「清空」：清掉全部对话，把欢迎区还原出来 */
+  const clearBtn = $("clear-chat");
+  if (clearBtn) {
+    clearBtn.addEventListener("click", () => {
+      [...wrap.children].forEach((n) => { if (n.id !== "empty") n.remove(); });
+      const e = $("empty");
+      if (e) e.style.display = "";
+      clearBtn.hidden = true;
+      input.value = "";
+      input.style.height = "auto";
+      input.focus();
+    });
+  }
+
+  /* ══════════════════════════════════════════════════════════
+     身份条 · 退出 · 管理端入口
+
+     能打开这一页，就说明服务端已经验过登录态了：
+       · 学生账号 —— 页面照常用，但**看不到**管理端入口（它无权进）；
+       · 管理账号 —— 多一个「进入管理端」，出口方向不受限。
+     会话到期（默认 8 小时）后接口会回 401/403，这里统一打回门户重登。
+     ══════════════════════════════════════════════════════════ */
+  (function identity() {
+    const box = $("me"), txt = $("me-txt"), entry = $("admin-entry");
+
+    function backToPortal() {
+      location.replace("/?locked=student");
+    }
+
+    (async function sync() {
+      let me = { role: null, label: "访客", can_admin: false, school: "", username: "" };
+      try {
+        me = await fetch("/api/auth/session").then((r) => r.json());
+      } catch (e) { /* 服务端不可达：不挡路，让后续接口自己报错 */ }
+
+      if (txt) txt.textContent = me.label || "访客";
+      if (box) box.classList.toggle("admin", !!me.can_admin);
+      if (entry) entry.hidden = !me.can_admin;
+
+      // 校名：演示时一眼看出这个号是给哪个大学开的
+      const bs = $("brand-school");
+      if (bs) {
+        bs.textContent = me.school || "";
+        bs.hidden = !me.school;
+      }
+      // 顶部信息卡的标题也带上校名（identity 跑得比 applyTheme 晚，这里补一次）
+      SCHOOL = me.school || "";
+      if (CURRENT && currentTheme) {
+        const t = $("tb-title");
+        if (t) t.textContent = SCHOOL + currentTheme.name + "小助手";
+      }
+
+      // 管理端开号时没写学校？学生自己补一个（后端只允许改自己那一条）
+      if (txt && !me.school && me.role === "student" && me.username !== "student") {
+        txt.textContent = "未填学校";
+        txt.title = "点一下填写你所在的学校";
+        txt.style.cursor = "pointer";
+        txt.addEventListener("click", async () => {
+          const v = (prompt("请输入你所在的学校 / 大学名称：") || "").trim();
+          if (!v) return;
+          try {
+            const r = await fetch("/api/auth/school", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ username: me.username, school: v }),
+            });
+            const d = await r.json().catch(() => ({}));
+            if (!d.ok) throw new Error(d.error || "保存失败");
+            location.reload();
+          } catch (e2) { alert(e2.message || "保存失败"); }
+        });
+      }
+    })();
+
+    if (entry) {
+      entry.addEventListener("click", () => { location.href = "/admin"; });
+    }
+
+    /* 校园地图入口：管理端在「系统状态 → 校园地图」里配好地址并打开开关，
+       这里才会出现那个 📍 图标；没配就保持隐藏，页面一切照旧。 */
+    (async function mapEntry() {
+      const btn = $("map-btn");
+      if (!btn) return;
+      try {
+        const s = await fetch("/api/site").then((r) => r.json());
+        if (!s.map_enabled || !s.map_url) return;
+        btn.title = s.map_label || "校园地图";
+        btn.hidden = false;
+        btn.addEventListener("click", (e) => {
+          e.preventDefault();
+          e.stopPropagation();          // 别把外层 brand 的跳转也带出来
+          window.open(s.map_url, "_blank", "noopener");
+        });
+      } catch (e) { /* 拿不到配置就不显示，不影响其它 */ }
+    })();
+
+    const out = $("logout");
+    if (out) {
+      out.addEventListener("click", async () => {
+        try { await fetch("/api/auth/logout", { method: "POST" }); } catch (e) { /* 忽略 */ }
+        location.href = "/";
+      });
+    }
+
+    // 会话过期后任何一次接口调用都可能 401/403 —— 统一打回门户重新登录
+    const rawFetch = window.fetch.bind(window);
+    window.fetch = async function (...args) {
+      const res = await rawFetch(...args);
+      const url = String(args[0] || "");
+      if ((res.status === 401 || res.status === 403)
+          && url.startsWith("/api/") && !url.startsWith("/api/auth/")) {
+        setTimeout(backToPortal, 900);
+      }
+      return res;
+    };
+  })();
+
+  applyTheme(currentTheme);
+  input.focus();
+  refreshStatus();
+  setInterval(refreshStatus, 30000);
+})();
+</script>
+</body>
+</html>

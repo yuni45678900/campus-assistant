@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>校园智能助手 · 入口</title>
+<style>
+  :root{
+    --sky-1:#e3f2ff; --sky-2:#eef3ff; --sky-3:#fff6e8;
+    --brand:#4d7cfe; --brand-2:#6d9bff; --brand-deep:#3b63d9;
+    --mint:#34d399; --sun:#fbbf24; --coral:#fb7185;
+    --ink:#1e293b; --ink-2:#4a5568; --ink-3:#94a3b8;
+    --card:#fff;
+    --radius:22px;
+    --sh:0 10px 30px rgba(77,124,254,.10), 0 2px 8px rgba(30,41,59,.05);
+    --sh-lg:0 24px 54px rgba(77,124,254,.20), 0 6px 16px rgba(30,41,59,.06);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{min-height:100%}
+  body{
+    font-family:"Segoe UI","Microsoft YaHei","PingFang SC",system-ui,sans-serif;
+    color:var(--ink); font-size:15px; line-height:1.7;
+    background:linear-gradient(170deg,var(--sky-1) 0%,var(--sky-2) 42%,var(--sky-3) 100%);
+    -webkit-font-smoothing:antialiased;
+    /* 删掉底部状态条、插画改成背景后，内容变矮了。
+       改成垂直居中：内容落在插画正中，四周留白也匀。 */
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    min-height:100vh; padding:24px 20px 30px; position:relative; overflow-x:hidden;
+  }
+  /* 背景漂浮光斑 */
+  .blob{position:fixed;border-radius:50%;filter:blur(60px);opacity:.5;pointer-events:none;z-index:0}
+  .blob.a{width:340px;height:340px;background:rgba(109,155,255,.5);top:-90px;left:-70px}
+  .blob.b{width:290px;height:290px;background:rgba(52,211,153,.38);bottom:-80px;right:-60px}
+  .blob.c{width:250px;height:250px;background:rgba(251,191,36,.35);top:44%;right:16%}
+
+  .page{position:relative;z-index:1;width:100%;max-width:1000px}
+
+  /* ── 顶栏 ─────────────────────── */
+  .nav{display:flex;align-items:center;gap:12px;padding:15px 4px 0}
+  .logo{
+    width:40px;height:40px;border-radius:13px;flex-shrink:0;display:grid;place-items:center;
+    background:linear-gradient(135deg,var(--brand),var(--brand-2));
+    box-shadow:0 8px 20px rgba(77,124,254,.30);font-size:20px;
+  }
+  .nav-t{font-size:15.5px;font-weight:700;letter-spacing:.2px;line-height:1.3}
+  .nav-s{font-size:11.5px;color:var(--ink-3);line-height:1.3}
+  .nav-sp{flex:1}
+
+  /* ── 顶栏身份 + 退出 ───────────────
+     登录后门户自己也得能退出（原来身份只塞在副标题文字里，没处可点，
+     只能绕到学生端/管理端去退）。未登录时整块藏起来。
+     [hidden] 必须加 !important：本元素自带 display，会盖掉浏览器默认的
+     [hidden]{display:none}。（这个坑之前在学生端踩过一次。） */
+  .nav-me{
+    display:inline-flex;align-items:center;gap:9px;padding:4px 5px 4px 13px;
+    border-radius:999px;background:rgba(255,255,255,.72);backdrop-filter:blur(10px);
+    border:1px solid rgba(255,255,255,.9);box-shadow:var(--sh);
+    font-size:12.5px;color:var(--ink-2);white-space:nowrap;
+  }
+  .nav-me[hidden]{display:none !important}
+  .nav-me .nm-i{color:var(--mint);font-size:11px;line-height:1}
+  .nav-me .nm-out{
+    padding:4px 11px;border-radius:999px;border:1px solid rgba(148,163,184,.32);
+    background:#fff;font-family:inherit;font-size:12px;color:var(--ink-2);
+    cursor:pointer;transition:.16s;
+  }
+  .nav-me .nm-out:hover{
+    border-color:rgba(251,113,133,.5);color:#e0537a;background:rgba(251,113,133,.07);
+  }
+  .nav-me .nm-out:disabled{opacity:.6;cursor:wait}
+  .status{
+    display:inline-flex;align-items:center;gap:7px;padding:7px 15px;border-radius:999px;
+    background:rgba(255,255,255,.72);backdrop-filter:blur(10px);
+    border:1px solid rgba(255,255,255,.9);box-shadow:var(--sh);
+    font-size:12.5px;color:var(--ink-2);white-space:nowrap;
+  }
+  .dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+  .dot.ok{background:var(--mint);box-shadow:0 0 0 4px rgba(52,211,153,.18)}
+  .dot.wait{background:var(--sun);box-shadow:0 0 0 4px rgba(251,191,36,.20)}
+  .dot.bad{background:var(--coral);box-shadow:0 0 0 4px rgba(251,113,133,.18)}
+
+  /* ── 主视觉 ─────────────────────
+     整页垂直节奏压过一轮：目标是一屏（约 800px 视口）内看全
+     「标题 + 插画 + 两张角色卡 + 状态条」，不用滚动。
+     当初总高 1029px，卡片被截、状态条完全看不到。 */
+  .hero{text-align:center;padding:14px 0 6px}
+  .hero h1{
+    /* 页面唯一的视觉重心，字号给足；一行放得下（15 字 × 30px ≈ 450px < 1000px） */
+    font-size:30px;font-weight:800;letter-spacing:-.4px;line-height:1.3;
+    background:linear-gradient(120deg,var(--brand-deep),var(--brand) 40%,#22a06b);
+    -webkit-background-clip:text;background-clip:text;color:transparent;
+  }
+  .hero p{color:var(--ink-2);font-size:15px;margin-top:9px}
+
+  /* ── 校园插画（背景层）────────────
+     原来它摆在标题和卡片之间，独占一整块；现在铺到内容后面当背景，
+     两张卡片改成半透明，插画从卡片底下透出来。
+     z-index:0 与 .blob 同级 —— 靠 DOM 顺序压在光斑之上、.page 之下。 */
+  .scene-bg{
+    /* 位置：楼的"身体"要正好落在卡片背后 —— 太靠上会跟标题打架，
+       太靠下又会在卡片下方露出一块游离的蓝。56% 是试出来的甜点。 */
+    position:fixed;left:50%;top:56%;transform:translate(-50%,-50%);
+    width:118vw;opacity:.55;pointer-events:none;z-index:0;
+    /* 轻微失焦：插画只当"底色氛围"，楼的蓝块、草地色块不再透过卡片变成硬色斑，
+       卡面文字读起来干净。 */
+    filter:blur(3px) saturate(1.06);
+    /* 四边柔和淡出：插画边缘不会在页面上切出一条硬线，
+       过宽/过窄的屏幕都不会露出接缝；顺带把右上角那颗太阳也淡掉。 */
+    -webkit-mask-image:radial-gradient(ellipse 62% 60% at 50% 50%,
+                       #000 55%,rgba(0,0,0,.35) 82%,transparent 100%);
+    mask-image:radial-gradient(ellipse 62% 60% at 50% 50%,
+               #000 55%,rgba(0,0,0,.35) 82%,transparent 100%);
+  }
+  .scene-bg svg{width:100%;height:auto;display:block}
+  .scene-bg .float{animation:float 6s ease-in-out infinite}
+  .scene-bg .float.d1{animation-delay:-2s}
+  .scene-bg .float.d2{animation-delay:-4s}
+  @keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-9px)}}
+
+  /* ── 角色卡 ─────────────────────
+     整块收窄到 900px 并居中：原来两张卡各占 490px，右半边留白过多，
+     显得散；收窄后卡与标题的宽度关系更协调。 */
+  .cards{display:grid;grid-template-columns:1fr 1fr;gap:20px;
+         max-width:900px;margin:20px auto 0}
+  .card{
+    /* 半透明 + 毛玻璃：让背后的校园插画透出来，卡片仍有足够对比度读数 */
+    background:rgba(255,255,255,.72);backdrop-filter:blur(16px) saturate(1.15);
+    -webkit-backdrop-filter:blur(16px) saturate(1.15);
+    border-radius:var(--radius);padding:18px 22px 18px;
+    box-shadow:var(--sh);border:1px solid rgba(255,255,255,.85);
+    text-decoration:none;color:inherit;display:block;position:relative;overflow:hidden;
+    transition:transform .25s cubic-bezier(.2,.8,.3,1),box-shadow .25s,background .25s;
+  }
+  .card:hover{transform:translateY(-6px);box-shadow:var(--sh-lg);
+              background:rgba(255,255,255,.86)}
+  .card::before{
+    content:"";position:absolute;inset:0 0 auto 0;height:5px;
+    background:linear-gradient(90deg,var(--brand),var(--brand-2));
+  }
+  .card.admin::before{background:linear-gradient(90deg,#34d399,#22c1a4)}
+  .card:active{transform:translateY(-2px)}
+  .c-ico{
+    width:42px;height:42px;border-radius:13px;display:grid;place-items:center;font-size:20px;
+    background:linear-gradient(135deg,rgba(77,124,254,.14),rgba(109,155,255,.20));
+    margin-bottom:9px;
+  }
+  .card.admin .c-ico{background:linear-gradient(135deg,rgba(52,211,153,.16),rgba(34,193,164,.20))}
+  .c-h{font-size:19px;font-weight:700;display:flex;align-items:center;gap:9px}
+  .c-h .go{
+    font-size:12px;font-weight:600;color:var(--brand);background:rgba(77,124,254,.10);
+    padding:2px 9px;border-radius:999px;
+  }
+  .card.admin .c-h .go{color:#0f9b7d;background:rgba(52,211,153,.14)}
+  /* ── 功能清单 ───────────────────
+     替代原来那段"散文式"描述：演示时一眼看清这扇门到底能干什么。
+     每条 = 加粗的功能名 + 一句说明。 */
+  .c-fn{margin-top:10px;display:grid;gap:7px}
+  .c-fn li{
+    list-style:none;display:flex;gap:8px;align-items:flex-start;
+    font-size:13px;color:var(--ink-2);line-height:1.55;
+  }
+  .c-fn .tick{
+    flex-shrink:0;width:16px;height:16px;margin-top:3px;border-radius:50%;
+    background:rgba(77,124,254,.13);color:var(--brand-deep);
+    font-size:10px;display:grid;place-items:center;font-weight:800;
+  }
+  .card.admin .c-fn .tick{background:rgba(52,211,153,.20);color:#0f9b7d}
+  .c-fn b{font-weight:600;color:var(--ink)}
+
+  /* 页脚说明现在压在插画上，给它一层毛玻璃底，别糊成一团 */
+  .foot{
+    text-align:center;font-size:11.5px;color:var(--ink-2);margin-top:16px;line-height:1.9;
+    background:rgba(255,255,255,.62);backdrop-filter:blur(8px);
+    -webkit-backdrop-filter:blur(8px);
+    border:1px solid rgba(255,255,255,.75);border-radius:999px;
+    padding:6px 18px;max-width:640px;
+  }
+
+  @media(max-width:720px){
+    .cards{grid-template-columns:1fr}
+    .hero h1{font-size:22px}
+    .scene-bg{width:150vw;opacity:.42}      /* 窄屏插画放大一点，别缩成一小团 */
+    /* 顶栏放不下「副标题 + 身份 + 状态」三样（全展开约 566px，窄屏只有 ~464px），
+       会挤成竖排单字并撑出横向滚动：副标题藏掉（本来就是装饰），
+       状态只留圆点（颜色已能区分正常/异常，详情进 title）。 */
+    .nav-s{display:none}
+    .nav-me{padding:4px 5px 4px 11px;font-size:12px}
+    .status{padding:8px 10px}
+    .status #status-text{display:none}
+  }
+  /* ── 管理端权限门 ─────────────── */
+  .gate-mask{
+    position:fixed;inset:0;z-index:60;display:none;padding:24px;
+    align-items:center;justify-content:center;
+    background:rgba(26,36,56,.42);backdrop-filter:blur(7px);
+  }
+  .gate-mask.show{display:flex;animation:gfade .16s ease}
+  @keyframes gfade{from{opacity:0}to{opacity:1}}
+  .gate{
+    width:100%;max-width:372px;background:var(--card);border-radius:var(--radius);
+    padding:26px 24px 20px;box-shadow:0 26px 70px rgba(18,36,72,.26);
+    animation:grise .24s cubic-bezier(.2,.9,.3,1.15);
+  }
+  @keyframes grise{from{transform:translateY(16px) scale(.97);opacity:0}
+    to{transform:none;opacity:1}}
+  .g-ico{
+    width:54px;height:54px;margin:0 auto 14px;border-radius:18px;display:grid;place-items:center;
+    font-size:25px;background:linear-gradient(135deg,var(--brand),var(--brand-2));
+    box-shadow:0 10px 24px rgba(77,124,254,.32);
+  }
+  .gate h3{font-size:17px;text-align:center;letter-spacing:.2px}
+  .gate .g-sub{text-align:center;color:var(--ink-3);font-size:12.5px;line-height:1.7;margin:7px 0 18px}
+  .gate input{
+    width:100%;padding:12px 14px;border-radius:14px;border:1px solid rgba(148,163,184,.28);
+    background:#f5f7fc;font-size:14px;font-family:inherit;color:var(--ink);
+    outline:none;transition:.18s;letter-spacing:1px;
+  }
+  .gate input:focus{border-color:rgba(77,124,254,.55);background:#fff;
+    box-shadow:0 0 0 3.5px rgba(77,124,254,.13)}
+  .gate input + input{margin-top:10px}
+  .g-err{
+    display:none;margin-top:10px;font-size:12.5px;color:#dc2626;
+    background:#fdeceb;border-radius:11px;padding:8px 12px;line-height:1.6;
+  }
+  .g-err.show{display:block;animation:gshake .3s}
+  @keyframes gshake{0%,100%{transform:translateX(0)}25%{transform:translateX(-5px)}
+    75%{transform:translateX(5px)}}
+  .g-btns{display:flex;gap:10px;margin-top:16px}
+  .g-btns button{
+    flex:1;padding:11px 0;border-radius:14px;border:1px solid rgba(148,163,184,.28);
+    background:#fff;font-size:13.5px;font-family:inherit;color:var(--ink-2);
+    cursor:pointer;transition:.18s;
+  }
+  .g-btns button:hover{background:#f4f6fb}
+  .g-btns .go{
+    border-color:transparent;color:#fff;font-weight:600;
+    background:linear-gradient(135deg,var(--brand),var(--brand-2));
+    box-shadow:0 8px 20px rgba(77,124,254,.30);
+  }
+  .g-btns .go:hover{filter:brightness(1.05);background:linear-gradient(135deg,var(--brand),var(--brand-2))}
+  .g-btns .go:disabled{opacity:.6;cursor:wait;filter:none}
+  .g-tip{margin-top:13px;text-align:center;font-size:11.5px;color:var(--ink-3);line-height:1.7}
+  .g-tip code{background:#f1f4fa;padding:1px 6px;border-radius:6px;font-size:11px}
+</style>
+</head>
+<body>
+<div class="blob a"></div><div class="blob b"></div><div class="blob c"></div>
+
+<div class="page">
+  <div class="nav">
+    <div class="logo">🎓</div>
+    <div>
+      <div class="nav-t">校园智能助手</div>
+      <div class="nav-s">本地大模型 · 多智能体路由 · 混合检索</div>
+    </div>
+    <div class="nav-sp"></div>
+    <!-- 已登录时出现：当前身份 + 退出。未登录整块隐藏。 -->
+    <div class="nav-me" id="nav-me" hidden>
+      <span class="nm-i">●</span><span id="nav-me-name"></span>
+      <button class="nm-out" id="nav-logout" type="button" title="退出登录">退出</button>
+    </div>
+    <div class="status" id="status"><span class="dot wait"></span><span id="status-text">正在检查服务…</span></div>
+  </div>
+
+  <div class="hero">
+    <h1>让校园里的每个问题都有地方可问</h1>
+    <p>每个小助手守着一份专属资料；问什么都能自动找到对的那一个。</p>
+  </div>
+
+  <!-- 手写校园场景 —— 现在改成"背景层"：
+       .scene-bg 是 position:fixed（已脱离文档流），所以留在原 DOM 位置
+       不会挤走别的元素；z-index 低于 .page，卡片半透明后它就从底下透出来。 -->
+  <div class="scene-bg">
+  <svg viewBox="0 0 760 250" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <defs>
+      <linearGradient id="gsky" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="#bfe0ff" stop-opacity=".55"/>
+        <stop offset="100%" stop-color="#eaf4ff" stop-opacity=".1"/>
+      </linearGradient>
+      <linearGradient id="gwall" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="#ffffff"/><stop offset="100%" stop-color="#e8eefb"/>
+      </linearGradient>
+      <linearGradient id="groof" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="#7d9cf8"/><stop offset="100%" stop-color="#5d7de8"/>
+      </linearGradient>
+      <linearGradient id="ggrass" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="#9be8c4"/><stop offset="100%" stop-color="#6fd2a8"/>
+      </linearGradient>
+    </defs>
+
+    <!-- 太阳 -->
+    <g class="float">
+      <circle cx="672" cy="52" r="40" fill="#fde68a" opacity=".30"/>
+      <circle cx="672" cy="52" r="26" fill="#fcd34d" opacity=".85"/>
+      <circle cx="672" cy="52" r="17" fill="#fbbf24"/>
+    </g>
+
+    <!-- 云 -->
+    <g class="float d1" fill="#ffffff" opacity=".92">
+      <ellipse cx="140" cy="62" rx="38" ry="19"/>
+      <ellipse cx="172" cy="56" rx="27" ry="22"/>
+      <ellipse cx="108" cy="66" rx="24" ry="15"/>
+    </g>
+    <g class="float d2" fill="#ffffff" opacity=".78">
+      <ellipse cx="500" cy="42" rx="30" ry="15"/>
+      <ellipse cx="525" cy="37" rx="21" ry="17"/>
+    </g>
+
+    <!-- 草地 -->
+    <path d="M0 208 C 150 188 300 214 460 200 C 590 189 690 206 760 196 L760 250 L0 250 Z" fill="url(#ggrass)" opacity=".55"/>
+
+    <!-- 教学楼 -->
+    <rect x="250" y="112" width="250" height="96" rx="9" fill="url(#gwall)"/>
+    <path d="M240 114 L 375 78 L 510 114 Z" fill="url(#groof)"/>
+    <rect x="366" y="70" width="18" height="14" rx="3" fill="#5d7de8"/>
+    <g fill="#c7d7f6">
+      <rect x="268" y="130" width="26" height="20" rx="4"/><rect x="306" y="130" width="26" height="20" rx="4"/>
+      <rect x="344" y="130" width="26" height="20" rx="4"/><rect x="382" y="130" width="26" height="20" rx="4"/>
+      <rect x="420" y="130" width="26" height="20" rx="4"/><rect x="458" y="130" width="26" height="20" rx="4"/>
+      <rect x="268" y="162" width="26" height="20" rx="4"/><rect x="306" y="162" width="26" height="20" rx="4"/>
+      <rect x="344" y="162" width="26" height="20" rx="4"/><rect x="382" y="162" width="26" height="20" rx="4"/>
+      <rect x="420" y="162" width="26" height="20" rx="4"/><rect x="458" y="162" width="26" height="20" rx="4"/>
+    </g>
+    <rect x="352" y="178" width="46" height="30" rx="5" fill="#7d9cf8"/>
+    <line x1="375" y1="178" x2="375" y2="208" stroke="#e8eefb" stroke-width="2"/>
+
+    <!-- 钟楼 -->
+    <rect x="545" y="126" width="52" height="82" rx="7" fill="url(#gwall)"/>
+    <path d="M537 128 L 571 96 L 605 128 Z" fill="#5d7de8"/>
+    <circle cx="571" cy="150" r="15" fill="#ffffff" stroke="#7d9cf8" stroke-width="3"/>
+    <line x1="571" y1="150" x2="571" y2="140" stroke="#5d7de8" stroke-width="2.5" stroke-linecap="round"/>
+    <line x1="571" y1="150" x2="579" y2="155" stroke="#5d7de8" stroke-width="2.5" stroke-linecap="round"/>
+    <rect x="562" y="178" width="18" height="30" rx="4" fill="#c7d7f6"/>
+
+    <!-- 树 -->
+    <g>
+      <rect x="196" y="168" width="11" height="40" rx="4" fill="#b98a63"/>
+      <circle cx="201" cy="156" r="25" fill="#84e0b4"/>
+      <circle cx="184" cy="166" r="17" fill="#9be8c4"/>
+      <circle cx="219" cy="165" r="16" fill="#6fd2a8"/>
+    </g>
+    <g>
+      <rect x="646" y="176" width="9" height="32" rx="3.5" fill="#b98a63"/>
+      <circle cx="650" cy="164" r="20" fill="#84e0b4"/>
+      <circle cx="637" cy="173" r="13" fill="#9be8c4"/>
+    </g>
+
+    <!-- 旗杆 -->
+    <line x1="102" y1="118" x2="102" y2="210" stroke="#b6c4dc" stroke-width="3.5" stroke-linecap="round"/>
+    <path d="M104 122 L 148 132 L 104 143 Z" fill="#fb7185"/>
+
+    <!-- 小路 -->
+    <path d="M330 208 C 340 226 360 238 375 250 L 465 250 C 452 236 430 224 420 208 Z" fill="#e6ecf8" opacity=".85"/>
+  </svg>
+  </div>
+
+  <!-- 两张角色卡：点哪个就登录进哪个，账号决定能走多远
+       卡面列的是"功能清单"（原来是一段散文描述，看不出能干什么）。 -->
+  <div class="cards">
+    <a class="card" href="/student" id="student-card">
+      <div class="c-ico">🧑‍🎓</div>
+      <div class="c-h">学生端 <span class="go">🔑 登录进入</span></div>
+      <ul class="c-fn">
+        <li><span class="tick">✓</span><span><b>自动找对助手</b>：问什么由系统挑最懂的那个来答</span></li>
+        <li><span class="tick">✓</span><span><b>流式回答</b>：逐字输出，可随时追问</span></li>
+        <li><span class="tick">✓</span><span><b>原文出处</b>：每条答案都挂参考资料，决策链可追溯</span></li>
+      </ul>
+    </a>
+    <a class="card admin" href="/admin" id="admin-card">
+      <div class="c-ico">🛠️</div>
+      <div class="c-h">管理端 <span class="go">🔒 仅管理员</span></div>
+      <ul class="c-fn">
+        <li><span class="tick">✓</span><span><b>整包入库</b>：拖进整个文件夹，自动归类到对应小助手</span></li>
+        <li><span class="tick">✓</span><span><b>文档管理</b>：逐份上传/删除/重建索引，误删可在回收站找回</span></li>
+        <li><span class="tick">✓</span><span><b>账号与地图</b>：开设学生/管理员账号，配置校园地图入口</span></li>
+      </ul>
+    </a>
+  </div>
+
+  <div class="foot">
+    所有回答均由本机模型生成，只依据知识库资料作答，资料未覆盖时会明确告知，不编造。
+  </div>
+</div>
+
+<!-- ══ 登录框 ══
+     两扇门各有一套凭据，权限是包含关系：
+     学生账号 → 只能进学生端；管理账号 → 管理端 + 学生端都能进。 -->
+<div class="gate-mask" id="gate">
+  <div class="gate" role="dialog" aria-modal="true" aria-labelledby="gate-title">
+    <div class="g-ico" id="gate-ico">🔑</div>
+    <h3 id="gate-title">登录校园助手</h3>
+    <div class="g-sub" id="gate-sub">请使用学校发放的账号登录。</div>
+    <input type="text" id="gate-user" placeholder="账号" autocomplete="username">
+    <input type="password" id="gate-pwd" placeholder="密码" autocomplete="current-password">
+    <div class="g-err" id="gate-err"></div>
+    <div class="g-btns">
+      <button type="button" id="gate-cancel">取消</button>
+      <button type="button" class="go" id="gate-go">登录</button>
+    </div>
+    <div class="g-tip" id="gate-tip">学生账号只能进学生端；管理账号两扇门都能进</div>
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+  const $ = (id) => document.getElementById(id);
+
+  /* ── 登录 ────────────────────────
+     两扇门两套凭据，权限是包含关系：
+       学生账号 → 只能进学生端；
+       管理账号 → 管理端 + 学生端都能进。
+     已登录时点卡片直接进；身份不够（学生点管理端）会把登录框推出来重新登录。 */
+  (function login() {
+    const mask = $("gate"), user = $("gate-user"), pwd = $("gate-pwd"),
+          err = $("gate-err"), go = $("gate-go"), ico = $("gate-ico"),
+          title = $("gate-title"), sub = $("gate-sub"), tip = $("gate-tip");
+    const cards = { student: $("student-card"), admin: $("admin-card") };
+    if (!mask || !cards.student) return;
+
+    let me = { role: null, label: "访客", can_student: false, can_admin: false };
+    let target = "student";        // 这一次想进哪扇门
+
+    const COPY = {
+      student: {
+        ico: "🧑‍🎓", title: "登录学生端",
+        sub: "提问、追问、看原文出处。",
+        tip: "学生账号或管理账号都可以登录；账号栏已填默认值，可改",
+        btn: "登录学生端",
+      },
+      admin: {
+        ico: "🛠️", title: "登录管理端",
+        sub: "知识库运维控制台，仅限管理员使用。",
+        tip: "管理端只认管理员账号；学生账号请回学生端登录",
+        btn: "登录管理端",
+      },
+    };
+
+    function applyCopy(t) {
+      const c = COPY[t];
+      ico.textContent = c.ico;
+      title.textContent = c.title;
+      sub.textContent = c.sub;
+      tip.textContent = c.tip;
+      go.textContent = c.btn;
+    }
+    function fail(m) { err.textContent = m; err.classList.add("show"); }
+
+    function open(t, msg) {
+      target = t;
+      applyCopy(t);
+      mask.classList.add("show");
+      pwd.value = "";
+      // 账号名不是秘密，直接填好：用户只需要输密码。
+      // （这一点很实在 —— 不填的话很容易把密码当账号填进去。）
+      if (!user.value) user.value = (t === "admin") ? "admin" : "student";
+      if (msg) fail(msg); else err.classList.remove("show");
+      setTimeout(() => (user.value ? pwd : user).focus(), 60);
+    }
+    function close() {
+      mask.classList.remove("show");
+      err.classList.remove("show");
+      go.disabled = false;
+      go.textContent = COPY[target].btn;
+    }
+
+    async function syncSession() {
+      try {
+        me = await fetch("/api/auth/session").then((r) => r.json());
+      } catch (e) {
+        me = { role: null, label: "访客", can_student: false, can_admin: false };
+      }
+
+      // 身份不再拼进副标题（那样没处可点），改成顶栏一个独立胶囊 + 退出
+      const box = $("nav-me"), who = $("nav-me-name");
+      if (box && who) {
+        box.hidden = !me.role;
+        who.textContent = me.label || "";
+        box.title = me.role ? `当前登录：${me.label}` : "";
+      }
+
+      const gs = cards.student.querySelector(".go");
+      const ga = cards.admin.querySelector(".go");
+      if (gs) gs.textContent = me.can_student ? "进入 →" : "🔑 登录进入";
+      if (ga) ga.textContent = me.can_admin ? "进入 →" : "🔒 仅管理员";
+    }
+
+    /* 门户退出登录：清会话后整页重载，卡片文案、身份胶囊一起回到未登录态。
+       重载比逐个改 DOM 稳妥 —— 门户上还有服务状态、地图入口等一堆登录无关的东西。 */
+    const outBtn = $("nav-logout");
+    if (outBtn) {
+      outBtn.addEventListener("click", async () => {
+        outBtn.disabled = true;
+        outBtn.textContent = "退出中…";
+        try { await fetch("/api/auth/logout", { method: "POST" }); } catch (e) { /* 忽略 */ }
+        localStorage.removeItem("campus_admin_token");
+        location.reload();
+      });
+    }
+
+    async function submit() {
+      const u = user.value.trim(), p = pwd.value;
+      if (!u || !p) { fail("请输入账号和密码"); (u ? pwd : user).focus(); return; }
+      go.disabled = true;
+      go.textContent = "登录中…";
+      try {
+        const r = await fetch("/api/auth/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ username: u, password: p, target }),
+        });
+        const d = await r.json().catch(() => ({}));
+        if (!r.ok || d.ok === false) throw new Error(d.error || "账号或密码不正确");
+        location.href = d.redirect || "/student";
+      } catch (e2) {
+        // 最常见的翻车：把密码填进账号栏（两个框长得一样）。
+        // 与其让人对着"账号或密码不正确"发愣，不如直接点破。
+        fail((u && u === p)
+          ? "账号和密码填成一样的了 —— 账号一般是 admin 或 student"
+          : (e2.message || "登录失败，请重试"));
+        pwd.select();
+        go.disabled = false;
+        go.textContent = COPY[target].btn;
+      }
+    }
+
+    function guard(t) {
+      return (e) => {
+        // 身份够了就直接走默认 href，不用再登一次
+        if (t === "student" && me.can_student) return;
+        if (t === "admin" && me.can_admin) return;
+        e.preventDefault();
+        open(t, (t === "admin" && me.role === "student")
+          ? "当前是学生账号，进不了管理端。请用管理员账号登录。"
+          : "");
+      };
+    }
+    cards.student.addEventListener("click", guard("student"));
+    cards.admin.addEventListener("click", guard("admin"));
+
+    go.addEventListener("click", submit);
+    $("gate-cancel").addEventListener("click", close);
+    [user, pwd].forEach((el) => {
+      el.addEventListener("keydown", (e) => { if (e.key === "Enter") submit(); });
+    });
+    mask.addEventListener("click", (e) => { if (e.target === mask) close(); });
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && mask.classList.contains("show")) close();
+    });
+
+    // 被服务端从 /student 或 /admin 打回来时，直接把对应登录框推到他面前
+    const locked = new URLSearchParams(location.search).get("locked");
+    syncSession().then(() => {
+      if (!locked) return;
+      history.replaceState(null, "", location.pathname);
+      const t = locked === "admin" ? "admin" : "student";
+      const why = (t === "admin" && me.role === "student")
+        ? "当前是学生账号，进不了管理端。请用管理员账号登录。"
+        : "请先登录后再继续。";
+      open(t, why);
+    });
+  })();
+
+  async function refresh() {
+    /* 底部那排「推理服务 / 知识分类 / 知识片段」状态条已删除，
+       所以这里只更新顶栏那个状态胶囊 —— 服务是否正常、几个分类就绪。 */
+    try {
+      const st = await fetch("/api/status").then((r) => r.json());
+      const idx = st.index || {}, llm = st.llm || {};
+
+      // 三种状态算出文案与颜色，一次写进去；title 供窄屏悬停看详情（窄屏只剩圆点）
+      const box = $("status");
+      let cls, msg;
+      if (llm.running && llm.model_ready) {
+        cls = "ok";
+        msg = "服务正常 · " + (idx.assistant_count || 0) + " 个分类就绪";
+      } else if (llm.running) {
+        cls = "wait";
+        msg = "模型未就绪";
+      } else {
+        cls = "bad";
+        msg = "Ollama 未连接";
+      }
+      box.innerHTML = '<span class="dot ' + cls + '"></span>'
+        + '<span id="status-text">' + msg + '</span>';
+      box.title = msg;
+    } catch (e) {
+      $("status").innerHTML = '<span class="dot bad"></span>'
+        + '<span id="status-text">服务异常</span>';
+      $("status").title = "服务异常";
+    }
+  }
+
+  refresh();
+  setInterval(refresh, 20000);
+})();
+</script>
+</body>
+</html>

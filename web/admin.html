@@ -1,0 +1,1270 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>管理端 · 知识库控制台</title>
+<style>
+  /* 管理端沿用校园生活风，但主色换成薄荷绿，与学生端（天蓝）区分 */
+  :root{
+    --brand:#22b8a0; --brand-rgb:34,184,160; --brand-2:#34d399; --brand-deep:#0f9b7d;
+    --sky:#4d7cfe; --sun:#fbbf24; --coral:#fb7185;
+    --bg:#f5f9f8; --panel:#fff;
+    --line:#e4ecEA; --line-2:#eef3f2;
+    --text:#1e293b; --text-2:#4a5568; --text-3:#94a3b8;
+    --ok:#10b981; --warn:#d97706; --err:#dc2626; --err-soft:#fdeceb;
+    --radius:22px;
+    --sh:0 8px 26px rgba(30,41,59,.06);
+    --sh-lg:0 18px 44px rgba(34,184,160,.16);
+    --mono:"Cascadia Code",Consolas,"Courier New",monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    font-family:"Segoe UI","Microsoft YaHei","PingFang SC",system-ui,sans-serif;
+    background:var(--bg);color:var(--text);font-size:14.5px;line-height:1.7;
+    -webkit-font-smoothing:antialiased;
+  }
+  body::before{
+    content:"";position:fixed;top:-280px;right:-220px;width:640px;height:640px;border-radius:50%;
+    background:radial-gradient(circle,rgba(52,211,153,.26),transparent 68%);pointer-events:none;z-index:0;
+  }
+  .app{display:flex;height:100vh;overflow:hidden;position:relative;z-index:1}
+
+  /* ══ 侧栏 ══ */
+  .sidebar{
+    width:230px;flex-shrink:0;background:rgba(255,255,255,.85);backdrop-filter:blur(14px);
+    border-right:1px solid var(--line);display:flex;flex-direction:column;padding:20px 14px;gap:8px;
+  }
+  .brand{display:flex;align-items:center;gap:11px;padding:0 4px 14px;text-decoration:none;color:inherit}
+  .brand-logo{
+    width:40px;height:40px;border-radius:13px;flex-shrink:0;display:grid;place-items:center;font-size:20px;
+    background:linear-gradient(135deg,var(--brand),var(--brand-2));
+    box-shadow:0 8px 18px rgba(var(--brand-rgb),.32);
+  }
+  .brand-name{font-size:14.5px;font-weight:700;line-height:1.35}
+  .brand-sub{font-size:10.5px;color:var(--text-3);line-height:1.35}
+
+  .nav-item{
+    display:flex;align-items:center;gap:10px;padding:10px 13px;border-radius:14px;
+    font-size:13.5px;color:var(--text-2);cursor:pointer;border:none;background:none;
+    font-family:inherit;text-align:left;width:100%;transition:.18s;position:relative;
+  }
+  .nav-item:hover{background:rgba(var(--brand-rgb),.07);color:var(--brand-deep)}
+  .nav-item.active{
+    background:linear-gradient(135deg,rgba(var(--brand-rgb),.13),rgba(52,211,153,.10));
+    color:var(--brand-deep);font-weight:700;
+  }
+  .nav-item.active::before{
+    content:"";position:absolute;left:0;top:50%;transform:translateY(-50%);
+    width:3.5px;height:19px;border-radius:2px;background:var(--brand);
+  }
+  .nav-item .ni{font-size:16px;width:20px;text-align:center;flex-shrink:0}
+  .nav-item .nb{
+    margin-left:auto;font-size:10.5px;font-weight:700;padding:1px 7px;border-radius:999px;
+    background:rgba(var(--brand-rgb),.14);color:var(--brand-deep);
+  }
+  .sidebar-foot{margin-top:auto;padding-top:12px;border-top:1px solid var(--line)}
+  .sidebar-foot a{
+    display:block;text-align:center;font-size:12.5px;color:var(--text-2);text-decoration:none;
+    padding:9px;border-radius:12px;border:1px solid var(--line);background:#fff;transition:.18s;
+  }
+  .sidebar-foot a:hover{border-color:rgba(var(--brand-rgb),.42);color:var(--brand-deep)}
+
+  /* ══ 主区 ══ */
+  .main{flex:1;display:flex;flex-direction:column;min-width:0}
+  .topbar{
+    height:60px;flex-shrink:0;border-bottom:1px solid var(--line);
+    background:rgba(255,255,255,.72);backdrop-filter:blur(12px);
+    display:flex;align-items:center;gap:12px;padding:0 26px;
+  }
+  .topbar h1{font-size:17px;font-weight:800;letter-spacing:-.2px}
+  .topbar .sub{font-size:11.5px;color:var(--text-3);margin-top:-2px}
+  .spacer{flex:1}
+  /* 身份标识 + 退出：账号密码只在门户登录一次，
+     进来之后不再需要满页找输入框。 */
+  .who{
+    display:inline-flex;align-items:center;gap:7px;padding:6px 13px;border-radius:999px;
+    background:rgba(52,211,153,.13);border:1px solid rgba(16,185,129,.30);
+    color:#0f9d76;font-size:12.5px;font-weight:600;white-space:nowrap;
+  }
+  .who-dot{
+    width:7px;height:7px;border-radius:50%;background:#10b981;
+    box-shadow:0 0 0 3px rgba(16,185,129,.20);
+  }
+  .who.plain{background:var(--line-soft);border-color:var(--line);color:var(--text-3)}
+  .who.plain .who-dot{background:var(--text-3);box-shadow:none}
+  .back{
+    padding:6px 14px;border-radius:999px;border:1px solid var(--line);background:#fff;
+    font-size:12.5px;color:var(--text-2);cursor:pointer;font-family:inherit;
+    transition:.18s;white-space:nowrap;
+  }
+  .back:hover{border-color:rgba(var(--brand-rgb),.45);color:var(--brand);
+    background:rgba(var(--brand-rgb),.06)}
+  .icon-btn{
+    width:34px;height:34px;border-radius:11px;border:1px solid var(--line);background:#fff;
+    cursor:pointer;display:grid;place-items:center;font-size:15px;transition:.18s;flex-shrink:0;
+  }
+  .icon-btn:hover{border-color:rgba(var(--brand-rgb),.45);color:var(--brand-deep)}
+
+  .content{flex:1;overflow-y:auto;padding:24px 26px 40px}
+  .view{display:none;animation:rise .25s ease}
+  .view.active{display:block}
+  @keyframes rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+
+  .panel{
+    background:#fff;border:1px solid var(--line);border-radius:var(--radius);
+    padding:20px 22px;box-shadow:var(--sh);margin-bottom:18px;
+  }
+  .panel-h{display:flex;align-items:center;gap:10px;margin-bottom:15px}
+  .panel-h h2{font-size:15.5px;font-weight:800}
+  .panel-h .desc{font-size:11.5px;color:var(--text-3)}
+  .panel-h .spacer{flex:1}
+
+  /* 统计卡 */
+  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(148px,1fr));gap:13px;margin-bottom:18px}
+  .stat{
+    background:#fff;border:1px solid var(--line);border-radius:18px;padding:16px 18px;
+    box-shadow:var(--sh);position:relative;overflow:hidden;
+  }
+  .stat::after{
+    content:"";position:absolute;right:-24px;top:-24px;width:74px;height:74px;border-radius:50%;
+    background:rgba(var(--brand-rgb),.08);
+  }
+  .stat .v{font-size:26px;font-weight:800;line-height:1.3;color:var(--brand-deep)}
+  .stat .k{font-size:11.5px;color:var(--text-3);margin-top:2px}
+  .stat.warn .v{color:var(--warn)}
+
+  /* 分布条形图 */
+  .bars{display:flex;flex-direction:column;gap:11px}
+  .bar-row{display:grid;grid-template-columns:88px 1fr 74px;gap:12px;align-items:center;font-size:12.5px}
+  .bar-name{font-weight:700;text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .bar-track{height:22px;border-radius:9px;background:var(--line-2);overflow:hidden}
+  .bar-fill{
+    height:100%;border-radius:9px;transition:width .6s cubic-bezier(.2,.8,.3,1);
+    display:flex;align-items:center;justify-content:flex-end;padding-right:8px;
+    color:#fff;font-size:10.5px;font-weight:700;
+  }
+  .bar-meta{color:var(--text-3);font-size:11.5px;white-space:nowrap}
+
+  /* 表格 */
+  table{width:100%;border-collapse:collapse;font-size:12.5px}
+  th{
+    text-align:left;font-size:11px;font-weight:700;color:var(--text-3);letter-spacing:.5px;
+    padding:8px 10px;border-bottom:1px solid var(--line);white-space:nowrap;
+  }
+  td{padding:9px 10px;border-bottom:1px solid var(--line-2);vertical-align:middle}
+  tr:last-child td{border-bottom:none}
+  tbody tr:hover{background:rgba(var(--brand-rgb),.035)}
+  .fname{font-weight:600;word-break:break-all}
+  .muted{color:var(--text-3);font-size:11.5px}
+
+  .tag{
+    display:inline-flex;align-items:center;gap:4px;font-size:10.5px;font-weight:700;
+    padding:2px 8px;border-radius:7px;white-space:nowrap;
+  }
+  .tag.ok{background:rgba(16,185,129,.12);color:#0d9668}
+  .tag.warn{background:rgba(217,119,6,.12);color:var(--warn)}
+  .tag.err{background:var(--err-soft);color:var(--err)}
+  .tag.gray{background:#f1f4f6;color:var(--text-3)}
+
+  /* 按钮 */
+  .btn{
+    display:inline-flex;align-items:center;justify-content:center;gap:6px;
+    padding:8px 15px;border-radius:12px;border:1px solid var(--line);background:#fff;
+    font-size:12.5px;color:var(--text-2);cursor:pointer;font-family:inherit;
+    transition:.18s;white-space:nowrap;
+  }
+  .btn:hover:not(:disabled){border-color:rgba(var(--brand-rgb),.45);color:var(--brand-deep);
+    background:rgba(var(--brand-rgb),.05)}
+  .btn:disabled{opacity:.5;cursor:not-allowed}
+  .btn.primary{
+    background:linear-gradient(135deg,var(--brand),var(--brand-2));color:#fff;border:none;
+    box-shadow:0 6px 16px rgba(var(--brand-rgb),.28);font-weight:600;
+  }
+  .btn.primary:hover:not(:disabled){transform:translateY(-2px);
+    box-shadow:0 10px 22px rgba(var(--brand-rgb),.36);color:#fff}
+  .btn.danger{color:var(--err);border-color:#f8d0cd}
+  .btn.danger:hover:not(:disabled){background:var(--err-soft);border-color:var(--err);color:var(--err)}
+  .btn.sm{padding:5px 11px;font-size:11.5px;border-radius:10px}
+
+  /* 助手折叠块 */
+  .acc{border:1px solid var(--line);border-radius:18px;overflow:hidden;margin-bottom:12px;background:#fff}
+  .acc-h{
+    display:flex;align-items:center;gap:12px;padding:14px 17px;cursor:pointer;
+    transition:.18s;user-select:none;
+  }
+  .acc-h:hover{background:rgba(var(--brand-rgb),.04)}
+  .acc-h .ico{
+    width:36px;height:36px;border-radius:12px;display:grid;place-items:center;font-size:17px;
+    background:rgba(var(--brand-rgb),.12);flex-shrink:0;
+  }
+  .acc-h .nm{font-weight:700;font-size:14px}
+  .acc-h .mt{font-size:11.5px;color:var(--text-3)}
+  .acc-h .spacer{flex:1}
+  .acc-h .arrow{color:var(--text-3);transition:transform .22s;font-size:13px}
+  .acc.open .arrow{transform:rotate(90deg)}
+  .acc-b{display:none;padding:0 17px 15px;border-top:1px solid var(--line-2)}
+  .acc.open .acc-b{display:block;animation:rise .2s ease}
+  .acc-tools{display:flex;gap:8px;padding:12px 0 4px;flex-wrap:wrap}
+
+  /* 上传 */
+  .drop{
+    border:2px dashed rgba(var(--brand-rgb),.38);border-radius:20px;padding:36px 20px;text-align:center;
+    background:rgba(var(--brand-rgb),.03);transition:.22s;cursor:pointer;
+  }
+  .drop:hover,.drop.over{border-color:var(--brand);background:rgba(var(--brand-rgb),.08)}
+  .drop .di{font-size:40px;margin-bottom:10px}
+  .drop .dt{font-size:14.5px;font-weight:700;margin-bottom:5px}
+  .drop .dd{font-size:12px;color:var(--text-3)}
+  .pick{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:16px 0 6px}
+  .pick label{font-size:12.5px;color:var(--text-2);font-weight:600}
+  .auto-tip{
+    display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;
+    color:#0f9d76;background:rgba(52,211,153,.12);
+    border:1px solid rgba(16,185,129,.28);border-radius:999px;padding:5px 13px;
+    margin-left:auto;      /* 靠右，免得被看成第三个按钮 */
+  }
+
+  /* ── 站点设置（校园地图入口）──────── */
+  .site-form{display:grid;grid-template-columns:1fr;gap:13px}
+  .site-form label{display:flex;flex-direction:column;gap:6px;font-size:12px;color:var(--text-3)}
+  .site-form input[type="text"],.site-form input:not([type]){
+    padding:9px 12px;border-radius:12px;border:1px solid var(--line);background:#fff;
+    font-family:inherit;font-size:13px;color:var(--text);outline:none;transition:.18s;
+  }
+  .site-form input:focus{border-color:rgba(var(--brand-rgb),.5);
+    box-shadow:0 0 0 3px rgba(var(--brand-rgb),.10)}
+  .site-form .chk{flex-direction:row;align-items:center;gap:9px;font-size:13px;color:var(--text-2)}
+  .site-form .chk input{width:auto;accent-color:var(--brand);cursor:pointer}
+  select,input[type=text],textarea{
+    padding:8px 12px;border-radius:12px;border:1px solid var(--line);font-family:inherit;
+    font-size:12.5px;outline:none;transition:.18s;background:#fff;color:var(--text);
+  }
+  select:focus,input[type=text]:focus,textarea:focus{
+    border-color:rgba(var(--brand-rgb),.5);box-shadow:0 0 0 3px rgba(var(--brand-rgb),.10)}
+  textarea{resize:vertical;line-height:1.7;width:100%}
+
+  .filelist{display:flex;flex-direction:column;gap:9px;margin-top:16px}
+  .fitem{border:1px solid var(--line);border-radius:14px;padding:11px 14px;background:#fff}
+  .fitem .fh{display:flex;align-items:center;gap:10px;font-size:12.5px}
+  .fitem .fn{font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .prog{height:6px;border-radius:4px;background:var(--line-2);overflow:hidden;margin-top:9px}
+  .prog i{display:block;height:100%;width:0;border-radius:4px;
+    background:linear-gradient(90deg,var(--brand),var(--brand-2));transition:width .18s}
+  .prog.done i{background:linear-gradient(90deg,#10b981,#34d399)}
+  .prog.fail i{background:linear-gradient(90deg,#dc2626,#fb7185)}
+
+  /* 表单 */
+  .field{margin-bottom:14px}
+  .field label{display:block;font-size:12.5px;font-weight:700;color:var(--text-2);margin-bottom:6px}
+  .field .hint{font-size:11px;color:var(--text-3);margin-top:5px;line-height:1.65}
+  .field input[type=text]{width:100%}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+
+  .kv{display:grid;grid-template-columns:170px 1fr;gap:9px 16px;font-size:12.5px}
+  .kv .k{color:var(--text-3)}
+  .kv .v{font-weight:600;word-break:break-all}
+
+  /* ── 学生账号 ─────────────────────
+     「学校 + 账号 + 密码」三件套，演示时直接念给学生听。 */
+  .acct-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:13px 16px;align-items:end}
+  .acct-form label{display:flex;flex-direction:column;gap:6px;font-size:12px;color:var(--text-3)}
+  .acct-form input,.acct-form select{
+    padding:9px 12px;border-radius:12px;border:1px solid var(--line);background:#fff;
+    font-family:inherit;font-size:13px;color:var(--text);outline:none;transition:.18s;
+  }
+  .acct-form input:focus,.acct-form select:focus{border-color:rgba(var(--brand-rgb),.5);
+    box-shadow:0 0 0 3px rgba(var(--brand-rgb),.10)}
+  .acct-form .full{grid-column:1/-1}
+  .acct-card{
+    display:flex;align-items:center;gap:14px;padding:13px 16px;border:1px solid var(--line);
+    border-radius:16px;margin-bottom:10px;background:#fff;transition:.18s;
+  }
+  .acct-card:hover{border-color:rgba(var(--brand-rgb),.30);
+    box-shadow:0 4px 14px rgba(var(--brand-rgb),.07)}
+  .acct-ava{
+    width:40px;height:40px;border-radius:13px;flex-shrink:0;display:grid;place-items:center;
+    font-size:18px;background:rgba(var(--brand-rgb),.12);
+  }
+  .acct-card.is-admin .acct-ava{background:rgba(16,185,129,.14)}
+  .acct-card.is-builtin{background:var(--line-soft)}
+  .acct-main{min-width:0;flex:1}
+  .acct-school{font-size:13.5px;font-weight:700;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .acct-meta{font-size:11.5px;color:var(--text-3);margin-top:4px;display:flex;
+    gap:12px;flex-wrap:wrap;align-items:center}
+  .acct-meta code{
+    background:var(--line-soft);padding:1px 8px;border-radius:6px;font-size:11.5px;
+    color:var(--text-2);cursor:pointer;user-select:all;
+  }
+  .acct-meta code:hover{background:rgba(var(--brand-rgb),.13);color:var(--brand-deep)}
+
+  .empty-tip{text-align:center;color:var(--text-3);font-size:12.5px;padding:26px 0}
+
+  .toast{
+    position:fixed;bottom:26px;left:50%;transform:translateX(-50%) translateY(20px);
+    background:#1e293b;color:#fff;padding:11px 20px;border-radius:14px;font-size:13px;
+    box-shadow:0 14px 34px rgba(0,0,0,.24);opacity:0;pointer-events:none;transition:.26s;z-index:9999;
+    max-width:min(560px,90vw);
+  }
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  .toast.ok{background:#0d9668}
+  .toast.err{background:#dc2626}
+
+  ::-webkit-scrollbar{width:9px;height:9px}
+  ::-webkit-scrollbar-thumb{background:#d5e0dd;border-radius:6px;border:2px solid transparent;background-clip:content-box}
+  ::-webkit-scrollbar-track{background:transparent}
+
+  @media(max-width:820px){
+    .sidebar{width:64px;padding:16px 8px}
+    .brand-name,.brand-sub,.nav-item span:not(.ni){display:none}
+    .grid2{grid-template-columns:1fr}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- ══ 侧栏 ══ -->
+  <aside class="sidebar">
+    <a class="brand" href="/">
+      <div class="brand-logo">🗂</div>
+      <div>
+        <div class="brand-name">知识库控制台</div>
+        <div class="brand-sub">校园助手 · 管理端</div>
+      </div>
+    </a>
+
+    <button class="nav-item active" data-view="overview"><span class="ni">📊</span><span>概览</span></button>
+    <!-- 上传文档排在知识库前面：进来第一件事通常是"把资料喂进去"，看文档管理是之后的事 -->
+    <button class="nav-item" data-view="upload"><span class="ni">⬆️</span><span>上传文档</span></button>
+    <button class="nav-item" data-view="kb"><span class="ni">📚</span><span>知识库</span><span class="nb" id="nb-docs">—</span></button>
+    <button class="nav-item" data-view="accounts"><span class="ni">🔑</span><span>学校账号</span><span class="nb" id="nb-accounts">—</span></button>
+    <button class="nav-item" data-view="system"><span class="ni">⚙️</span><span>系统状态</span></button>
+
+    <div class="sidebar-foot">
+      <a href="/student">← 回到学生端</a>
+    </div>
+  </aside>
+
+  <!-- ══ 主区 ══ -->
+  <main class="main">
+    <div class="topbar">
+      <div>
+        <h1 id="view-title">概览</h1>
+        <div class="sub" id="view-sub">知识库整体情况一览</div>
+      </div>
+      <div class="spacer"></div>
+      <div class="who" id="who" title="已通过管理权限验证">
+        <span class="who-dot"></span><span id="who-txt">管理员</span>
+      </div>
+      <button class="back" id="logout" title="退出管理端，返回学生端">退出</button>
+      <button class="icon-btn" id="refresh" title="刷新">↻</button>
+    </div>
+
+    <div class="content">
+      <!-- 概览 -->
+      <div class="view active" id="v-overview">
+        <div class="stats" id="stat-cards"></div>
+        <div class="panel">
+          <div class="panel-h"><h2>知识库分布</h2><div class="desc">每个助手的文档数与片段数</div></div>
+          <div class="bars" id="bars"><div class="empty-tip">加载中…</div></div>
+        </div>
+        <div class="panel" id="problem-panel" style="display:none">
+          <div class="panel-h"><h2>需要注意</h2><div class="desc">这些问题会影响检索效果</div></div>
+          <div id="problems"></div>
+        </div>
+      </div>
+
+      <!-- 知识库 -->
+      <div class="view" id="v-kb">
+        <div class="panel">
+          <div class="panel-h">
+            <h2>文档管理</h2>
+            <div class="desc">分类由上传时自动生成；展开可查看文档，逐份删除或单独重建索引</div>
+            <div class="spacer"></div>
+            <button class="btn sm" id="rebuild-all">↻ 重建全部索引</button>
+          </div>
+          <div id="kb-list"><div class="empty-tip">加载中…</div></div>
+        </div>
+      </div>
+
+      <!-- 上传：不用选分类，系统自己读内容判断 -->
+      <div class="view" id="v-upload">
+        <div class="panel">
+          <div class="panel-h"><h2>上传文档</h2>
+            <div class="desc">支持 docx / pdf / txt / md，单文件 50 MB</div></div>
+
+          <div class="drop" id="drop">
+            <div class="di">📄</div>
+            <div class="dt">把文件或整个文件夹拖到这里</div>
+            <div class="dd" id="drop-hint">拖文件夹 → 按文件夹名分好类；拖零散文件 → 系统读内容自动归类</div>
+          </div>
+          <input type="file" id="file-input" multiple
+                 accept=".docx,.pdf,.txt,.md" style="display:none">
+          <input type="file" id="dir-input" webkitdirectory style="display:none">
+
+          <div class="pick">
+            <button class="btn sm" id="pick-files">📄 选择文件</button>
+            <button class="btn sm" id="pick-dir">📁 选择整个文件夹</button>
+            <span class="muted" id="upload-mode"></span>
+            <span class="auto-tip">✨ 自动归类</span>
+          </div>
+
+          <div class="filelist" id="filelist"></div>
+
+          <div style="display:flex;gap:10px;margin-top:18px;flex-wrap:wrap">
+            <button class="btn primary" id="do-upload" disabled>⬆️ 开始上传</button>
+            <button class="btn" id="clear-list" disabled>清空列表</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 学生账号 -->
+      <div class="view" id="v-accounts">
+        <div class="panel">
+          <div class="panel-h">
+            <h2 id="acc-title">开通学生账号</h2>
+            <div class="desc" id="acc-form-desc">填好学校、账号、密码，把这三样发给学生，他在门户登录就能用学生端</div>
+          </div>
+          <div class="acct-form">
+            <label class="full"><span>学校 / 大学</span>
+              <input id="acc-school" placeholder="如：A大学  （学生端侧栏会显示这个校名）" maxlength="40">
+            </label>
+            <label><span>账号</span>
+              <input id="acc-user" placeholder="如：a-student" maxlength="24" autocomplete="off">
+            </label>
+            <label><span>密码</span>
+              <input id="acc-pass" placeholder="如：123456" maxlength="32" autocomplete="off">
+            </label>
+            <label><span>姓名（可留空）</span>
+              <input id="acc-name" placeholder="如：张三" maxlength="20">
+            </label>
+            <label id="acc-role-wrap"><span>身份</span>
+              <select id="acc-role">
+                <option value="student">学生</option>
+                <option value="admin">学校管理员</option>
+              </select>
+            </label>
+            <div class="full" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+              <button class="btn primary" id="acc-create">＋ 创建账号</button>
+              <span style="font-size:11.5px;color:var(--text-3)" id="acc-hint">
+                账号 3~24 位字母数字；创建后立即可登录
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-h">
+            <h2>账号列表</h2>
+            <div class="desc" id="acc-desc">—</div>
+            <div class="spacer"></div>
+            <button class="btn sm" id="acc-refresh">↻ 刷新</button>
+          </div>
+          <div id="acc-list"><div class="empty-tip">加载中…</div></div>
+        </div>
+      </div>
+
+      <!-- 系统状态 -->
+      <div class="view" id="v-system">
+        <div class="panel">
+          <div class="panel-h">
+            <h2>校园地图</h2>
+          </div>
+          <div class="site-form">
+            <label><span>地图地址</span>
+              <input id="map-url" maxlength="500"
+                     placeholder="https://yuni45678900.github.io/shishidaohang/">
+            </label>
+            <label><span>入口名称（鼠标悬停时显示）</span>
+              <input id="map-label" maxlength="20" placeholder="校园地图">
+            </label>
+            <label class="chk">
+              <input type="checkbox" id="map-enabled">
+              <span>在学生端显示这个入口</span>
+            </label>
+            <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+              <button class="btn primary" id="map-save">保存</button>
+              <button class="btn" id="map-open">打开看看</button>
+              <span class="muted" id="map-state"></span>
+            </div>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="panel-h"><h2>运行参数</h2><div class="desc">来自 app/config.py，改参数请改文件</div></div>
+          <div class="kv" id="cfg-kv"></div>
+        </div>
+        <div class="panel">
+          <div class="panel-h">
+            <h2>回收站</h2>
+            <div class="desc">删除的文档都在这，不会真的消失</div>
+            <div class="spacer"></div>
+            <button class="btn sm" id="trash-refresh">↻ 刷新</button>
+          </div>
+          <div id="trash-list"><div class="empty-tip">加载中…</div></div>
+        </div>
+        <div class="panel">
+          <div class="panel-h"><h2 style="color:var(--err)">危险操作</h2>
+            <div class="desc">这些操作影响面较大，请谨慎</div></div>
+          <div style="display:flex;gap:10px;flex-wrap:wrap">
+            <button class="btn danger" id="danger-rebuild">↻ 重建全部索引</button>
+            <button class="btn danger" id="danger-purge">🗑 清空回收站</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function () {
+  "use strict";
+  const $ = (id) => document.getElementById(id);
+
+  /* ── 状态 ─────────────────────────
+     登录态走 Cookie，前端不再存任何凭据：能打开这个页面就说明已经是管理员。 */
+  let DATA = null;               // /api/admin/overview 的返回
+  let CAPS = { multipart: true, max_upload_mb: 50, upload_url: "/api/admin/upload" };
+  let queue = [];                // 待上传文件
+
+  const VIEW_META = {
+    overview:   ["概览", "知识库整体情况一览"],
+    kb:         ["知识库", "按分类查看与管理文档"],
+    upload:     ["上传文档", "传上来就行，系统自动判断归到哪个分类"],
+    accounts:   ["学生账号", ""],        // 副标题留空 = 该视图不显示那行小字
+    system:     ["系统状态", "运行参数、回收站与危险操作"],
+  };
+
+  /* ── 工具 ───────────────────────── */
+  function esc(s) {
+    return String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+    }[c]));
+  }
+  let toastTimer = null;
+  function toast(msg, kind) {
+    const t = $("toast");
+    t.textContent = msg;
+    t.className = "toast show" + (kind ? " " + kind : "");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { t.className = "toast"; }, 3200);
+  }
+  async function api(url, opts) {
+    opts = opts || {};
+    opts.credentials = "same-origin";     // 会话在 Cookie 里，同源自动携带
+    const r = await fetch(url, opts);
+    let d = {};
+    try { d = await r.json(); } catch (e) { /* 非 JSON */ }
+    if (r.status === 401 || r.status === 403) {
+      // 会话过期或权限不够 —— 回门户重新登录，别停在一个空壳页面上
+      setTimeout(() => location.replace("/?locked=admin"), 900);
+      throw new Error(d.error || "登录已失效，正在返回门户重新登录…");
+    }
+    if (!r.ok || d.ok === false) {
+      throw new Error(d.error || ("HTTP " + r.status));
+    }
+    return d;
+  }
+
+  /* ── 视图切换 ───────────────────── */
+  document.querySelectorAll(".nav-item").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll(".nav-item").forEach((b) => b.classList.remove("active"));
+      btn.classList.add("active");
+      const v = btn.dataset.view;
+      document.querySelectorAll(".view").forEach((x) => x.classList.remove("active"));
+      $("v-" + v).classList.add("active");
+      $("view-title").textContent = VIEW_META[v][0];
+      // 副标题留空就不显示这一行（否则会留一条空行，把标题顶得怪怪的）
+      const subTxt = VIEW_META[v][1] || "";
+      $("view-sub").textContent = subTxt;
+      $("view-sub").style.display = subTxt ? "" : "none";
+      if (v === "system") { loadTrash(); loadSiteSettings(); }
+      if (v === "accounts") loadAccounts();
+    });
+  });
+
+  /* ── 加载与渲染 ─────────────────── */
+  async function load() {
+    try {
+      DATA = await api("/api/admin/overview");
+      CAPS = DATA.capabilities || CAPS;
+      renderAll();
+      loadAccounts();
+      $("upload-mode").textContent = CAPS.multipart
+        ? "" : "（服务端未装 python-multipart，已自动使用裸流通道）";
+    } catch (e) {
+      toast(e.message, "err");
+      const box = $("stat-cards");
+      if (box) box.innerHTML = '<div class="panel" style="grid-column:1/-1;padding:18px">'
+        + '⚠️ 加载失败：' + esc(e.message) + '</div>';
+    }
+  }
+
+  function renderAll() {
+    renderStats();
+    renderBars();
+    renderProblems();
+    renderKB();
+    renderConfig();
+  }
+
+  function renderStats() {
+    const s = DATA.summary || {};
+    const llm = DATA.llm || {};
+    const llmOk = llm.running && llm.model_ready;
+    $("nb-docs").textContent = s.doc_count || 0;
+
+    const cards = [
+      ["小助手", s.assistant_count || 0, ""],
+      ["已建索引", (s.built_count || 0) + " / " + (s.assistant_count || 0), (s.built_count < s.assistant_count) ? "warn" : ""],
+      ["文档", s.doc_count || 0, ""],
+      ["知识片段", s.chunk_count || 0, ""],
+      ["推理服务", llmOk ? "正常" : (llm.running ? "缺模型" : "未连接"), llmOk ? "" : "warn"],
+      ["回收站", s.trash_count || 0, ""],
+    ];
+    $("stat-cards").innerHTML = cards.map(([k, v, cls]) =>
+      `<div class="stat ${cls}"><div class="v">${esc(v)}</div><div class="k">${esc(k)}</div></div>`
+    ).join("");
+  }
+
+  function renderBars() {
+    const list = DATA.assistants || [];
+    if (!list.length) {
+      $("bars").innerHTML = '<div class="empty-tip">还没有任何助手</div>';
+      return;
+    }
+    const max = Math.max(1, ...list.map((a) => a.chunk_count || 0));
+    const COLORS = ["#4d7cfe", "#6d5efc", "#f97316", "#14b8a6", "#c026d3", "#0284c7"];
+    $("bars").innerHTML = list.map((a, i) => {
+      const c = COLORS[i % COLORS.length];
+      const pct = Math.round(((a.chunk_count || 0) / max) * 100);
+      return `<div class="bar-row">
+        <div class="bar-name" title="${esc(a.display_name)}">${esc(a.name)}</div>
+        <div class="bar-track"><div class="bar-fill"
+          style="width:${Math.max(pct, 6)}%;background:linear-gradient(90deg,${c},${c}bb)">
+          ${a.chunk_count || 0}</div></div>
+        <div class="bar-meta">${a.doc_count} 文档</div>
+      </div>`;
+    }).join("");
+  }
+
+  function renderProblems() {
+    const list = (DATA.assistants || []).filter((a) => (a.problems || []).length);
+    if (!list.length) { $("problem-panel").style.display = "none"; return; }
+    $("problem-panel").style.display = "block";
+    $("problems").innerHTML = list.map((a) =>
+      `<div style="margin-bottom:12px">
+        <div style="font-weight:700;font-size:13px;margin-bottom:6px">${esc(a.display_name)}</div>
+        <table><tbody>${a.problems.map((p) =>
+          `<tr><td class="fname">${esc(p.name)}</td>
+               <td><span class="tag warn">⚠ ${esc(p.hint || "无法解析")}</span></td></tr>`).join("")}
+        </tbody></table></div>`).join("");
+  }
+
+  function renderKB() {
+    const list = DATA.assistants || [];
+    if (!list.length) {
+      $("kb-list").innerHTML = '<div class="empty-tip">知识库还是空的 —— 去「上传文档」传点资料，'
+        + '系统会自动把它们分好类。</div>';
+      return;
+    }
+    $("kb-list").innerHTML = list.map((a) => {
+      const docs = a.docs || [];
+      const rows = docs.length ? docs.map((d) => {
+        let tag;
+        if (!d.parsable) tag = '<span class="tag err">✕ 无法解析</span>';
+        else if (d.error) tag = '<span class="tag warn">⚠ 未入索引</span>';
+        else if (d.indexed) tag = '<span class="tag ok">✓ 已入索引</span>';
+        else tag = '<span class="tag gray">未入索引</span>';
+        return `<tr>
+          <td class="fname">${esc(d.name)}</td>
+          <td class="muted">${d.kb} KB</td>
+          <td class="muted">${esc(d.mtime)}</td>
+          <td>${tag}</td>
+          <td style="text-align:right;white-space:nowrap">
+            <button class="btn sm danger" data-del="${esc(d.rel)}"
+                    data-assistant="${esc(a.name)}">删除</button>
+          </td></tr>`;
+      }).join("")
+        : '<tr><td colspan="5" class="empty-tip">该分类还没有文档</td></tr>';
+
+      return `<div class="acc" data-acc="${esc(a.name)}">
+        <div class="acc-h">
+          <span class="arrow">▶</span>
+          <span class="ico">📁</span>
+          <span>
+            <span class="nm">${esc(a.display_name)}</span>
+            <span class="mt"> · ${a.doc_count} 文档 / ${a.chunk_count} 片段
+              ${a.indexed ? "" : " · <b style='color:#d97706'>未建索引</b>"}</span>
+          </span>
+          <span class="spacer"></span>
+          <button class="btn sm" data-reindex="${esc(a.name)}">↻ 重建索引</button>
+          <button class="btn sm danger" data-drop="${esc(a.name)}"
+                  title="把这个分类和里面的文档一起移入回收站">删除分类</button>
+        </div>
+        <div class="acc-b">
+          <table><thead><tr>
+            <th>文件名</th><th>大小</th><th>修改时间</th><th>状态</th><th></th>
+          </tr></thead><tbody>${rows}</tbody></table>
+          ${a.built_at ? `<div class="muted" style="margin-top:10px">索引构建于 ${esc(a.built_at)}</div>` : ""}
+        </div>
+      </div>`;
+    }).join("");
+
+    // 折叠
+    $("kb-list").querySelectorAll(".acc-h").forEach((h) => {
+      h.addEventListener("click", (e) => {
+        if (e.target.closest("button")) return;
+        h.parentElement.classList.toggle("open");
+      });
+    });
+    // 删除
+    $("kb-list").querySelectorAll("[data-del]").forEach((b) => {
+      b.addEventListener("click", () => delDoc(b.dataset.assistant, b.dataset.del));
+    });
+    // 单助手重建
+    $("kb-list").querySelectorAll("[data-reindex]").forEach((b) => {
+      b.addEventListener("click", () => doReindex([b.dataset.reindex], b));
+    });
+    // 删除分类（移入回收站）
+    $("kb-list").querySelectorAll("[data-drop]").forEach((b) => {
+      b.addEventListener("click", () => dropAssistant(b.dataset.drop));
+    });
+  }
+
+  function renderConfig() {
+    const c = DATA.config || {};
+    const rows = [
+      ["对话模型", c.llm_model], ["嵌入模型", c.embed_model], ["重排模型", c.rerank_model],
+      ["切片长度", c.chunk_size + " 字 / 重叠 " + c.chunk_overlap + " 字"],
+      ["召回条数", `向量 Top${c.vector_top_k} + BM25 Top${c.bm25_top_k} → 重排 Top${c.rerank_top_n}`],
+      ["路由阈值", `绝对 ${c.route_abs} / 最小差距 ${c.route_margin}`],
+      ["上传上限", c.max_upload_mb + " MB"],
+      ["可解析格式", (c.parsable_ext || []).join("  ")],
+      ["登录方式", `账号密码 · 管理端与学生端各一套 · 登录态 ${c.session_hours || 8} 小时`],
+      ["文档目录", DATA.summary.raw_dir],
+    ];
+    $("cfg-kv").innerHTML = rows.map(([k, v]) =>
+      `<div class="k">${esc(k)}</div><div class="v">${esc(v)}</div>`).join("");
+  }
+
+  /* ── 校园地图设置 ─────────────────
+     存 data/settings.json，学生端通过公开接口 /api/site 读它。
+     不填地址 / 关掉开关，学生端左上角就什么都不显示。 */
+  async function loadSiteSettings() {
+    try {
+      const d = await api("/api/admin/settings");
+      const s = d.settings || {};
+      $("map-url").value = s.map_url || "";
+      $("map-label").value = s.map_label || "";
+      $("map-enabled").checked = !!s.map_enabled;
+      $("map-state").textContent = (s.map_enabled && s.map_url)
+        ? "已开启 —— 学生端左上角能看到入口"
+        : "未开启 —— 学生端不显示";
+    } catch (e) { toast(e.message, "err"); }
+  }
+
+  $("map-save").addEventListener("click", async () => {
+    const url = $("map-url").value.trim();
+    const on = $("map-enabled").checked;
+    if (on && !url) {
+      toast("开了开关就得填地址，不然学生端点不动", "err");
+      $("map-url").focus();
+      return;
+    }
+    const btn = $("map-save");
+    btn.disabled = true;
+    btn.textContent = "保存中…";
+    try {
+      const d = await api("/api/admin/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          map_url: url,
+          map_enabled: on,
+          map_label: $("map-label").value.trim(),
+        }),
+      });
+      const s = d.settings || {};
+      $("map-enabled").checked = !!s.map_enabled;
+      toast(s.map_enabled ? "已保存 —— 学生端左上角会出现地图入口"
+                          : "已保存（未开启，学生端不显示）", "ok");
+      loadSiteSettings();
+    } catch (e) { toast(e.message, "err"); }
+    btn.disabled = false;
+    btn.textContent = "保存";
+  });
+
+  $("map-open").addEventListener("click", () => {
+    const url = $("map-url").value.trim();
+    if (!url) { toast("先填个地址", "err"); $("map-url").focus(); return; }
+    window.open(url, "_blank", "noopener");
+  });
+
+  async function loadTrash() {
+    try {
+      const d = await api("/api/admin/trash");
+      const batches = d.batches || [];
+      $("trash-list").innerHTML = batches.length ? batches.map((b) => `
+        <div class="acc open">
+          <div class="acc-h">
+            <span class="ico">🗑</span>
+            <span><span class="nm">${esc(b.batch)}</span>
+              <span class="mt"> · ${b.count} 个文件 · ${esc(b.time)}</span></span>
+            <span class="spacer"></span>
+          </div>
+          <div class="acc-b">
+            ${b.files.map((f) => `<div class="muted" style="padding:3px 0">
+              ${esc(f.rel)} <span style="float:right">${f.kb} KB</span></div>`).join("")}
+            <div class="hint" style="margin-top:10px">
+              还原方式：把文件移回 <code>${esc(DATA.summary.raw_dir)}</code> 对应助手目录，再重建索引。
+            </div>
+          </div>
+        </div>`).join("") : '<div class="empty-tip">回收站是空的</div>';
+    } catch (e) {
+      $("trash-list").innerHTML = '<div class="empty-tip">' + esc(e.message) + '</div>';
+    }
+  }
+
+  /* ── 文档删除 / 索引重建 ─────────── */
+  async function delDoc(assistant, filename) {
+    if (!confirm(`确定删除《${filename}》吗？\n\n文件会移入回收站（不会真删），该助手的索引会同步更新。`)) return;
+    try {
+      toast("正在删除并同步索引…");
+      const d = await api("/api/admin/documents", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ assistant: assistant, filename: filename }),
+      });
+      toast(`已删除《${filename}》。${d.index || ""}`, "ok");
+      await load();
+    } catch (e) { toast(e.message, "err"); }
+  }
+
+  async function doReindex(only, btn, silent) {
+    const label = only ? `「${only.join("、")}」` : "全部分类";
+    // silent：上传后自动建索引时不再多问一句，直接干
+    if (!silent && !confirm(`重建${label}的索引？\nCPU 环境下可能需要几秒到几十秒。`)) return;
+    const old = btn ? btn.textContent : "";
+    if (btn) { btn.disabled = true; btn.textContent = "构建中…"; }
+    try {
+      const d = await api("/api/admin/reindex", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ only: only }),
+      });
+      const m = d.manifest || {};
+      const n = Object.keys(m.assistants || {}).length;
+      toast(`重建完成：${n} 个助手，共 ${m.total_chunks || 0} 个片段，耗时 ${m.total_sec || "?"} 秒`, "ok");
+      await load();
+    } catch (e) { toast(e.message, "err"); }
+    finally { if (btn) { btn.disabled = false; btn.textContent = old; } }
+  }
+
+  /* ── 分类管理 ─────────────────────
+     分类是上传时自动建出来的，所以这里只留一个"删掉整个分类"的能力
+     （入口在「知识库」视图的分类标题栏）。 */
+  async function dropAssistant(name) {
+    if (!confirm(`确定删除分类「${name}」吗？\n\n里面的全部文档会移入回收站，索引一并清除。\n文件可在「回收站」找回，重建索引即可恢复。`)) return;
+    try {
+      await api("/api/admin/assistants?name=" + encodeURIComponent(name), { method: "DELETE" });
+      toast(`分类「${name}」已删除，文档在回收站`, "ok");
+      await load();
+    } catch (e) { toast(e.message, "err"); }
+  }
+
+  /* ── 上传 ───────────────────────── */
+  const drop = $("drop");
+  const fileInput = $("file-input");
+  const dirInput = $("dir-input");
+
+  drop.addEventListener("click", () => fileInput.click());
+  $("pick-files").addEventListener("click", () => fileInput.click());
+  $("pick-dir").addEventListener("click", () => dirInput.click());
+
+  ["dragenter", "dragover"].forEach((ev) =>
+    drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add("over"); }));
+  ["dragleave", "drop"].forEach((ev) =>
+    drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.remove("over"); }));
+
+  // 拖进来的可能是文件夹，得先把目录展开再排队
+  drop.addEventListener("drop", async (e) => {
+    if (!e.dataTransfer) return;
+    drop.classList.add("over");
+    const items = await collectDropped(e.dataTransfer);
+    drop.classList.remove("over");
+    if (items.length) addFiles(items);
+    else toast("没识别到可上传的文档（支持 docx / pdf / txt / md）", "err");
+  });
+
+  fileInput.addEventListener("change", () => {
+    addFiles([...fileInput.files].map((f) => ({ file: f, relpath: "" })));
+    fileInput.value = "";
+  });
+
+  // 选文件夹：webkitRelativePath 天然就是 "子目录/文件名" 的形式
+  dirInput.addEventListener("change", () => {
+    addFiles([...dirInput.files].map((f) =>
+      ({ file: f, relpath: f.webkitRelativePath || "" })));
+    dirInput.value = "";
+  });
+
+  function addFiles(items) {
+    const allow = [".docx", ".pdf", ".txt", ".md"];
+    items.forEach((it) => {
+      const f = it.file;
+      const rel = (it.relpath || "").replace(/\\/g, "/");
+      const fromDir = rel.includes("/");       // 来自文件夹（带目录层）
+      const ext = ("." + (f.name.split(".").pop() || "")).toLowerCase();
+      // 拖文件夹时里面什么都可能有：不支持的格式直接静默略过，别刷一屏红字
+      if (fromDir && !allow.includes(ext) && ext !== ".doc") return;
+
+      let bad = "";
+      if (ext === ".doc") bad = "老版 .doc 格式，请先用 Word 另存为 .docx";
+      else if (!allow.includes(ext)) bad = "不支持的格式，仅接受 " + allow.join(" / ");
+      else if (f.size > (CAPS.max_upload_mb || 50) * 1048576)
+        bad = `超过 ${CAPS.max_upload_mb || 50} MB 上限`;
+      queue.push({ file: f, relpath: rel, status: bad ? "fail" : "wait", msg: bad, pct: 0 });
+    });
+    renderQueue();
+  }
+
+  /* 拖进来的可能是**文件夹**：逐层展开，记下相对路径。
+     顶层文件夹名就是分类名 —— 你在电脑上怎么分的，传上去就怎么落。
+     （readEntries 一次最多回 100 条，所以要循环读到空为止。） */
+  async function collectDropped(dt) {
+    const entries = [];
+    for (const it of [...(dt.items || [])]) {
+      if (it.kind !== "file" || !it.webkitGetAsEntry) continue;
+      const en = it.webkitGetAsEntry();
+      if (en) entries.push(en);
+    }
+    if (!entries.length) {
+      return [...(dt.files || [])].map((f) => ({ file: f, relpath: "" }));
+    }
+    const out = [];
+    for (const en of entries) await walkEntry(en, "", out);
+    return out;
+  }
+
+  function walkEntry(entry, prefix, out) {
+    return new Promise((resolve) => {
+      if (entry.isFile) {
+        entry.file((f) => {
+          out.push({ file: f, relpath: prefix ? `${prefix}/${f.name}` : "" });
+          resolve();
+        }, () => resolve());
+        return;
+      }
+      if (!entry.isDirectory) { resolve(); return; }
+      const path = prefix ? `${prefix}/${entry.name}` : entry.name;
+      const reader = entry.createReader();
+      const readAll = (acc) => reader.readEntries((batch) => {
+        if (!batch.length) {
+          (async () => {
+            for (const child of acc) await walkEntry(child, path, out);
+            resolve();
+          })();
+          return;
+        }
+        readAll(acc.concat(batch));
+      }, () => resolve());
+      readAll([]);
+    });
+  }
+
+  function renderQueue() {
+    $("do-upload").disabled = !queue.some((q) => q.status === "wait");
+    $("clear-list").disabled = !queue.length;
+    if (!queue.length) { $("filelist").innerHTML = ""; return; }
+
+    $("filelist").innerHTML = queue.map((q, i) => {
+      const cls = q.status === "done" ? "done" : (q.status === "fail" ? "fail" : "");
+      const tagMap = {
+        wait: '<span class="tag gray">待上传</span>',
+        up: '<span class="tag warn">上传中</span>',
+        done: '<span class="tag ok">✓ 已上传</span>',
+        fail: '<span class="tag err">✕ 失败</span>',
+      };
+      return `<div class="fitem">
+        <div class="fh">
+          <span class="fn">${esc(q.relpath || q.file.name)}</span>
+          <span class="muted">${(q.file.size / 1024).toFixed(0)} KB</span>
+          ${tagMap[q.status] || ""}
+        </div>
+        <div class="prog ${cls}"><i style="width:${q.pct}%"></i></div>
+        ${q.msg ? `<div class="muted" style="margin-top:7px;color:${q.status === "fail" ? "var(--err)" : "var(--text-3)"}">${esc(q.msg)}</div>` : ""}
+      </div>`;
+    }).join("");
+  }
+
+  function uploadOne(item, onProgress) {
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable) onProgress(e.loaded / e.total);
+      };
+      xhr.onload = () => {
+        let d = {};
+        try { d = JSON.parse(xhr.responseText); } catch (e) { /* ignore */ }
+        if (xhr.status >= 200 && xhr.status < 300 && d.ok) resolve(d);
+        else reject(new Error(d.error || ("HTTP " + xhr.status)));
+      };
+      xhr.onerror = () => reject(new Error("网络错误，上传中断"));
+
+      // relpath 带上相对路径：服务端据此认出"这是从文件夹里来的"，
+      // 顶层文件夹名直接当分类名（拖文件夹就不再用模型猜了）。
+      const rel = item.relpath || "";
+      if (CAPS.multipart) {
+        const fd = new FormData();
+        fd.append("file", item.file);
+        if (rel) fd.append("relpath", rel);
+        xhr.open("POST", "/api/admin/upload");
+        xhr.send(fd);
+      } else {
+        const url = "/api/admin/upload/raw?filename=" + encodeURIComponent(item.file.name)
+          + (rel ? "&relpath=" + encodeURIComponent(rel) : "");
+        xhr.open("POST", url);
+        xhr.setRequestHeader("Content-Type", "application/octet-stream");
+        xhr.send(item.file);
+      }
+    });
+  }
+
+  $("do-upload").addEventListener("click", async () => {
+    const btn = $("do-upload");
+    btn.disabled = true;
+    let okN = 0, failN = 0;
+    const cats = new Map();        // 分类名 -> 归过去的文档数
+
+    for (let i = 0; i < queue.length; i++) {
+      const q = queue[i];
+      if (q.status !== "wait") continue;
+      const fromFolder = (q.relpath || "").includes("/");
+      q.status = "up"; q.pct = 0;
+      q.msg = fromFolder ? "按文件夹归类…" : "正在读内容、判断分类…";
+      renderQueue();
+      try {
+        const d = await uploadOne(q, (p) => {
+          q.pct = Math.round(p * 100);
+          const bar = $("filelist").children[i];
+          if (bar) bar.querySelector(".prog i").style.width = q.pct + "%";
+        });
+        q.status = "done"; q.pct = 100;
+        cats.set(d.assistant, (cats.get(d.assistant) || 0) + 1);
+        q.msg = `→ 归入「${d.assistant}」` + (d.overwritten ? "　（覆盖了同名文件）" : "");
+        okN++;
+      } catch (e) {
+        q.status = "fail"; q.msg = e.message;
+        failN++;
+      }
+      renderQueue();
+    }
+
+    btn.disabled = false;
+    if (!okN) {
+      toast(`上传失败 ${failN} 个，请查看下方原因`, "err");
+      return;
+    }
+
+    // 传完顺手把索引建了，否则新资料还是答不出来
+    const names = [...cats.keys()];
+    toast(`已归入 ${names.length} 个分类：${names.join("、")} —— 正在建立索引…`, "ok");
+    await doReindex(names, btn, true);
+    await load();
+  });
+
+  $("clear-list").addEventListener("click", () => { queue = []; renderQueue(); });
+
+  /* ── 学生账号 ─────────────────────
+     管理端现场开号：填「学校 + 账号 + 密码」，学生拿这三样去门户登录。
+     开出来的账号立即生效，不用重启服务。 */
+  let ACCTS = [];
+  let ME = { is_super: false };      // boot() 里填真值，用来决定能不能开「学校管理员」
+
+  /* 身份决定开号范围：
+     超级管理员 → 学生 + 学校管理员；学校管理员 → 只能开学生。
+     这里只是"把选项藏起来"（后端还会再挡一道 403，藏按钮不是权限）。 */
+  function applyAccountPerms() {
+    const wrap = $("acc-role-wrap");
+    if (!wrap) return;
+    if (ME.is_super) {                             // 超管：两样都能开
+      const t1 = $("acc-title");
+      if (t1) t1.textContent = "开通学生 / 管理员账号";
+      return;
+    }
+    wrap.style.display = "none";                   // 学校管理员：整块隐藏，固定开学生
+    const sel = $("acc-role");
+    if (sel) sel.value = "student";
+    const title = $("acc-title");
+    if (title) title.textContent = "开通学生账号";
+    const fd = $("acc-form-desc");
+    if (fd) fd.textContent = "你是学校管理员，只能开通学生账号（开通学校管理员需超级管理员操作）";
+  }
+
+  async function loadAccounts() {
+    try {
+      const d = await api("/api/admin/accounts");
+      ACCTS = d.accounts || [];
+      renderAccounts(d);
+    } catch (e) {
+      const box = $("acc-list");
+      if (box) box.innerHTML = '<div class="empty-tip">加载失败：' + esc(e.message) + '</div>';
+    }
+  }
+
+  function renderAccounts(d) {
+    const s = (d && d.stats) || { total: 0, students: 0, admins: 0 };
+    const nb = $("nb-accounts");
+    if (nb) nb.textContent = String(s.total || 0);
+    const desc = $("acc-desc");
+    if (desc) {
+      desc.textContent = s.total
+        ? `自建账号 ${s.total} 个（学生 ${s.students} · 学校管理员 ${s.admins}），下面是内置账号`
+        : "还没有开过账号 —— 上面填一下，点「创建账号」就行";
+    }
+    const list = $("acc-list");
+    if (!list) return;
+
+    if (!ACCTS.length) {
+      list.innerHTML = '<div class="empty-tip">系统里目前只有 .env 里那两个内置账号</div>';
+      return;
+    }
+
+    list.innerHTML = ACCTS.map((a) => {
+      const role = a.role || "student";
+      const tag = role === "super" ? '<span class="tag gray">超级管理员</span>'
+        : role === "admin" ? '<span class="tag ok">学校管理员</span>'
+        : '<span class="tag">学生</span>';
+      const pwd = a.builtin
+        ? '<span>密码见 <code>.env</code></span>'
+        : `<span>密码 <code class="pwd" data-pwd="${esc(a.password)}" title="点一下看明文">••••••</code></span>`;
+      const del = a.builtin
+        ? '<span class="tag gray">内置</span>'
+        : `<button class="btn sm danger" data-del="${esc(a.username)}">删除</button>`;
+      return `
+        <div class="acct-card ${role !== "student" ? "is-admin" : ""} ${a.builtin ? "is-builtin" : ""}">
+          <div class="acct-ava">${a.builtin ? "⚙️" : (role === "admin" ? "🛠" : "🧑‍🎓")}</div>
+          <div class="acct-main">
+            <div class="acct-school">
+              ${esc(a.school || "（未填学校）")}${tag}
+            </div>
+            <div class="acct-meta">
+              <span>账号 <code>${esc(a.username)}</code></span>
+              ${pwd}
+              ${a.name ? "<span>" + esc(a.name) + "</span>" : ""}
+              <span>${esc(a.created_at || "")}</span>
+            </div>
+          </div>
+          ${del}
+        </div>`;
+    }).join("");
+  }
+
+  const accList = $("acc-list");
+  if (accList) {
+    // 点密码看明文：演示时可以直接念给学生
+    accList.addEventListener("click", (e) => {
+      const code = e.target.closest("code.pwd");
+      if (code) {
+        code.textContent = (code.textContent === "••••••") ? (code.dataset.pwd || "") : "••••••";
+        return;
+      }
+      const btn = e.target.closest("[data-del]");
+      if (!btn) return;
+      const u = btn.dataset.del;
+      if (!confirm(`删除账号「${u}」？\n\n它会立刻无法登录，已登录的会话也会失效。`)) return;
+      api("/api/admin/accounts?username=" + encodeURIComponent(u), { method: "DELETE" })
+        .then(() => { toast(`已删除 ${u}`, "ok"); loadAccounts(); })
+        .catch((err) => toast(err.message, "err"));
+    });
+  }
+
+  const accCreate = $("acc-create");
+  if (accCreate) {
+    accCreate.addEventListener("click", async () => {
+      const school = $("acc-school").value.trim();
+      const username = $("acc-user").value.trim();
+      const password = $("acc-pass").value;
+      const name = $("acc-name").value.trim();
+      // 身份：非超管一律按学生提交，避免前端被改后试出 403
+      const role = ME.is_super ? $("acc-role").value : "student";
+
+      if (!school) { toast("先把学校名填上 —— 学生端要显示这个校名", "err"); $("acc-school").focus(); return; }
+      if (!username || !password) { toast("账号和密码都要填", "err"); (username ? $("acc-pass") : $("acc-user")).focus(); return; }
+
+      accCreate.disabled = true;
+      accCreate.textContent = "创建中…";
+      try {
+        const d = await api("/api/admin/accounts", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ username, password, school, name, role }),
+        });
+        toast(`已为「${school}」开通账号 ${d.account.username}`, "ok");
+        $("acc-user").value = "";
+        $("acc-pass").value = "";
+        $("acc-name").value = "";
+        loadAccounts();
+      } catch (e) {
+        toast(e.message, "err");
+      }
+      accCreate.disabled = false;
+      accCreate.textContent = "＋ 创建账号";
+    });
+  }
+
+  const accRefresh = $("acc-refresh");
+  if (accRefresh) accRefresh.addEventListener("click", () => { loadAccounts(); toast("已刷新"); });
+
+  /* ── 顶栏 / 危险操作 ─────────────── */
+  $("logout").addEventListener("click", async () => {
+    try { await fetch("/api/auth/logout", { method: "POST" }); } catch (e) { /* 忽略 */ }
+    location.href = "/";
+  });
+  $("refresh").addEventListener("click", () => { load(); toast("已刷新"); });
+  $("rebuild-all").addEventListener("click", (e) => doReindex(null, e.currentTarget));
+  $("danger-rebuild").addEventListener("click", (e) => doReindex(null, e.currentTarget));
+  $("trash-refresh").addEventListener("click", loadTrash);
+
+  $("danger-purge").addEventListener("click", async () => {
+    if (!confirm("清空回收站是不可逆操作，里面的文件将永久消失。\n\n确定继续吗？")) return;
+    try {
+      const d = await api("/api/admin/trash");
+      let n = 0;
+      for (const b of (d.batches || [])) {
+        await api("/api/admin/trash?batch=" + encodeURIComponent(b.batch), { method: "DELETE" });
+        n += b.count;
+      }
+      toast(n ? `已清空回收站，共清除 ${n} 个文件` : "回收站本来就是空的", "ok");
+      loadTrash(); load();
+    } catch (e) { toast(e.message, "err"); }
+  });
+
+  /* ── 启动：先确认身份，再拉数据 ───
+     服务端 /admin 路由已经拦过一道，这里再拦一道是为了堵住
+     直接访问 /web/admin.html 这类绕行路径。 */
+  (async function boot() {
+    let me = { role: null, label: "访客", can_admin: false };
+    try {
+      const r = await fetch("/api/auth/session");
+      me = await r.json();
+    } catch (e) { /* 服务端不可达：不挡路，交由后续接口报错 */ }
+
+    if (!me.can_admin) {
+      location.replace("/?locked=admin");
+      return;
+    }
+    $("who-txt").textContent = me.school || me.label || "管理员";
+    $("who").title = `当前登录：${me.label || "管理员"}（管理端 + 学生端都可访问）`;
+    ME = me;                       // 记住是不是超级管理员 —— 决定能不能开「学校管理员」
+    applyAccountPerms();
+    load();
+  })();
+})();
+</script>
+</body>
+</html>
