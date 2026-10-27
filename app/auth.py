@@ -106,7 +106,7 @@ def check(username: str, password: str) -> Tuple[Optional[Identity], str]:
             name=item.get("name", ""),
         ), ""
 
-    return None, "账号或密码不正确"
+    return None, "账号或密码错误"
 
 
 def lookup(username: str) -> Optional[Identity]:
