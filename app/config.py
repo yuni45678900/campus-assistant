@@ -244,7 +244,7 @@ LOG_LEVEL = os.getenv("CAMPUS_LOG_LEVEL", "INFO")
 def describe() -> str:
     """打印当前生效的关键配置，便于排查问题。"""
     lines = [
-        "── 校园智能助手 配置 ──────────────────────",
+        "── 智伴校园 配置 ──────────────────────",
         f"  对话模型   : {LLM_MODEL}  (think={LLM_THINK}, ctx={LLM_NUM_CTX})",
         f"  嵌入模型   : {EMBED_MODEL}",
         f"  重排模型   : {RERANK_MODEL if ENABLE_RERANK else '已关闭'}",

@@ -1,6 +1,6 @@
 # 第三方组件许可声明
 
-本文件列出本项目（校园助手 / campus-assistant）使用的第三方组件及其许可证。
+本文件列出本项目（智伴校园 / campus-assistant）使用的第三方组件及其许可证。
 本项目自身代码以 **MIT** 许可发布，见根目录 `LICENSE`。
 
 各组件的完整许可证文本随包安装于 Python 虚拟环境的 `Lib/site-packages/<包名>-<版本>.dist-info/` 目录下。

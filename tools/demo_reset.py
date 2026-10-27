@@ -140,7 +140,7 @@ def try_reindex() -> str:
 def main() -> int:
     print()
     print("=" * 52)
-    print("  校园助手 · 演示前复位" + ("（预演模式，不动任何文件）" if DRY else ""))
+    print("  智伴校园 · 演示前复位" + ("（预演模式，不动任何文件）" if DRY else ""))
     print("=" * 52)
     print()
     print(" 1. 把资料搬到暂存区")
