@@ -55,6 +55,15 @@
 
 ## 三、快速开始
 
+> **先拿到代码**：会 Git 的直接克隆；不想折腾 Git 的到
+> [**Releases**](https://github.com/yuni45678900/campus-assistant/releases/latest)
+> 下载 `campus-assistant-v1.0.0.zip`（约 9 MB），解压即得完整项目 ——
+> 含全部源码、启动脚本与文档，**不含任何校本资料**。
+>
+> ```
+> git clone https://github.com/yuni45678900/campus-assistant.git
+> ```
+
 ### 步骤 1 · 安装 Ollama（模型运行时）
 
 > ⚠️ **注意**：ollama.com 官网的下载按钮会 307 跳转到 **github.com**。
