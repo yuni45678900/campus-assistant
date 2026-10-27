@@ -192,7 +192,7 @@ campus-assistant/
 ├── web/
 │   ├── index.html      入口门户（校园插画 + 两张角色卡 + 实时状态）
 │   ├── student.html    学生端（各分类配色，单文件零依赖）
-│   └── admin.html      管理端（六视图知识库控制台）
+│   └── admin.html      管理端（六视图管理端控制台）
 ├── tools/
 │   ├── make_sample_docs.py   生成演示文档
 │   ├── mock_ollama.py        模拟模型服务（无 Ollama 时预览界面用）

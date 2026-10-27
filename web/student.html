@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>学生端 · 校园智能助手</title>
+<title>学生端 · 智伴校园</title>
 <style>
   /* ══════════════════════════════════════════════════════════
      设计令牌 —— 校园生活风
@@ -550,7 +550,7 @@
     <a class="brand" href="/">
       <div class="brand-logo" id="brand-logo">🎓</div>
       <div>
-        <div class="brand-name" id="brand-name">校园智能助手</div>
+        <div class="brand-name" id="brand-name">智伴校园</div>
         <div class="brand-sub" id="brand-school" hidden></div>
       </div>
       <!-- 校园地图入口：管理端配了地址才会出现 -->
@@ -582,7 +582,7 @@
     <div class="topbar">
       <div class="tb-ico" id="tb-ico">🎓</div>
       <div class="tb-txt">
-        <div class="tb-title" id="tb-title">校园智能助手</div>
+        <div class="tb-title" id="tb-title">智伴校园</div>
         <div class="tb-sub" id="tb-sub">按问题类型自动切换小助手</div>
       </div>
       <span class="spacer"></span>
@@ -603,7 +603,7 @@
           <div class="wrap" id="wrap">
             <div class="empty" id="empty">
               <div class="empty-icon" id="empty-icon">🎓</div>
-              <h2 id="empty-title">你好，我是校园智能助手</h2>
+              <h2 id="empty-title">你好，我是智伴校园</h2>
               <div class="sub" id="empty-sub">按问题类型自动切换到对应的小助手，给你可追溯的答案。</div>
               <div class="grid-title" id="sample-title">或者，直接试试这些</div>
               <div class="samples" id="samples"></div>
@@ -643,7 +643,7 @@
     key: "__auto__", name: "自动路由", emoji: "🎓",
     brand: "#2ab3a0", rgb: "42,179,160", brand2: "#3fa9d4",
     glow1: "rgba(63,169,212,.26)", glow2: "rgba(42,179,160,.20)",
-    title: "你好，我是校园智能助手",
+    title: "你好，我是智伴校园",
     sub: "按问题类型自动切换到对应的小助手，给你可追溯的答案。",
     placeholder: "想问点什么？比如「奖学金怎么申请」…",
     label: "路由 · 自动",
@@ -885,7 +885,7 @@
     r.setProperty("--glow-2", theme.glow2);
 
     $("brand-logo").textContent = theme.emoji;
-    $("brand-name").textContent = CURRENT ? (theme.name + "助手") : "校园智能助手";
+    $("brand-name").textContent = CURRENT ? (theme.name + "助手") : "智伴校园";
     $("empty-icon").textContent = theme.emoji;
     $("empty-title").textContent = theme.title;
     $("empty-sub").textContent = theme.sub;
@@ -896,7 +896,7 @@
 
     // 顶部信息卡：图标 + 「{校名}{助手名}小助手」+ 一句话介绍
     $("tb-ico").textContent = theme.emoji;
-    $("tb-title").textContent = CURRENT ? (SCHOOL + theme.name + "小助手") : "校园智能助手";
+    $("tb-title").textContent = CURRENT ? (SCHOOL + theme.name + "小助手") : "智伴校园";
     $("tb-sub").textContent = CURRENT ? theme.sub : "按问题类型自动切换小助手，给你可追溯的答案";
     $("top-right").innerHTML = CURRENT
       ? '<a class="back" href="/student">← 自动问答</a>'
@@ -945,7 +945,7 @@
         `<div class="sample"><span class="si">${s.i}</span><span class="tx">${escapeHtml(s.t)}</span></div>`
       ).join("");
     }
-    document.title = CURRENT ? (theme.name + "助手 · 校园智能助手") : "学生端 · 校园智能助手";
+    document.title = CURRENT ? (theme.name + "助手 · 智伴校园") : "学生端 · 智伴校园";
   }
 
   /* ══════════════════════════════════════════════════════════

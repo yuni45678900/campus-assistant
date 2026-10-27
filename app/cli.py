@@ -18,7 +18,7 @@ import time
 from app import config
 
 BANNER = r"""
-  校园智能助手 · Campus Assistant
+  智伴校园 · Campus Assistant
   Qwen3-8B (本地) + 混合检索 RAG
 """
 
@@ -196,7 +196,7 @@ def cmd_chat(_args):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="校园智能助手命令行工具",
+        description="智伴校园命令行工具",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=__doc__,
     )
