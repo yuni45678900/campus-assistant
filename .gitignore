@@ -83,3 +83,8 @@ desktop.ini
 *.swp
 *.swo
 *~
+*.bak
+
+# 发布产物：源码压缩包通过 GitHub Releases 分发，不进版本库
+# （13 MB 的 zip 会让仓库体积暴涨，且内容与仓库本身重复）
+release/

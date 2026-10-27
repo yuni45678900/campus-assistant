@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""生成《校园小助手》系统架构图（分层架构 + 建库/问答两条链路）。"""
+"""生成《校园小助手》系统架构图（分层架构 + 建库/问答两条流程）。"""
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
@@ -51,7 +51,7 @@ def arrow(x1, y1, x2, y2, label="", dx=0.0, fs=10.5, style="-|>"):
                 bbox=dict(boxstyle="round,pad=0.25", fc="white", ec="none"))
 
 
-ax.text(50, 97.6, "校园小助手 · 系统架构", fontsize=17, fontweight="bold",
+ax.text(50, 97.6, "系统架构", fontsize=17, fontweight="bold",
         ha="center", va="top", color="#1A202C")
 ax.text(50, 93.6, "分层结构 · 全部组件在本机运行，运行期不调用任何外部接口",
         fontsize=11, ha="center", va="top", color="#4A5568")
@@ -74,8 +74,8 @@ box(LX, 55.5, LW, 13.4, "服务层（FastAPI + Uvicorn）",
 
 # ---- AI 服务层 ----
 box(LX, 27.0, LW, 21.6, "AI 服务层（本机推理）",
-    ["分类路由：分类由资料目录动态发现，零硬编码；模型不可用时逐级降级",
-     "混合检索：向量 Top8 + BM25 Top8 → RRF 融合 → 重排",
+    ["分类路由：分类由资料目录动态发现，零硬编码；模型不可用时逐级退让",
+     "混合检索：向量 Top8 + BM25 Top8 → 倒数秩融合 → 重排",
      "本地对话模型 Qwen3-8B（Ollama 本地推理；有独显自动载入显存，无独显回落 CPU）",
      "提示词约束：仅依据命中的校本资料作答，资料不足时如实说明，并强制标注来源",
      "语料解析与中文友好切片：按标题层级切分并保留标题路径，Word 表格转为键值对文本"],
@@ -103,19 +103,19 @@ ax.text(43, 52.1, "命中的资料片段", fontsize=10.5, ha="center", va="cente
 
 arrow(50, 27.0, 50, 22.3, "索引读写", dx=6.5)
 
-# ---- 两条链路 ----
+# ---- 两条流程 ----
 ax.add_patch(FancyBboxPatch((LX, 1.6), LW, 6.4,
                             boxstyle="round,pad=0,rounding_size=1.2",
                             linewidth=1.2, edgecolor="#A0AEC0", facecolor=C_FLOW, zorder=2))
-ax.text(LX + 1.6, 6.9, "建库链路", fontsize=11.5, fontweight="bold", va="top", ha="left",
+ax.text(LX + 1.6, 6.9, "建库流程", fontsize=11.5, fontweight="bold", va="top", ha="left",
         color="#2D3748", zorder=3)
 ax.text(LX + 12.5, 6.9,
         "校本资料（.docx / .pdf / .md / .txt）  →  解析（含 Word 表格）  →  文本清洗  →  中文切片  →  向量与关键词双路索引",
         fontsize=10.6, va="top", ha="left", color="#2D3748", zorder=3)
-ax.text(LX + 1.6, 3.5, "问答链路", fontsize=11.5, fontweight="bold", va="top", ha="left",
+ax.text(LX + 1.6, 3.5, "问答流程", fontsize=11.5, fontweight="bold", va="top", ha="left",
         color="#2D3748", zorder=3)
 ax.text(LX + 12.5, 3.5,
-        "用户提问  →  分类路由  →  双路召回  →  RRF 融合  →  重排  →  本地生成  →  标注来源文件与章节（SSE 流式返回）",
+        "用户提问  →  分类路由  →  双路检索  →  倒数秩融合  →  重排  →  本地生成  →  标注来源文件与章节（SSE 流式返回）",
         fontsize=10.6, va="top", ha="left", color="#2D3748", zorder=3)
 
 fig.savefig(r"D:\campus-assistant\docs\系统架构图.png", dpi=200,
