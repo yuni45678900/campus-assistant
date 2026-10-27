@@ -1,4 +1,4 @@
-# 校园智能小助手 · Campus Assistant
+# 智伴校园 · Campus Assistant
 
 > 写材料 / 二次开发前先读 [`PROJECT_BRIEF.md`](./PROJECT_BRIEF.md)：项目定位、模块职责与边界、
 > 业务流程、技术约束、命名规范，以及**写材料时的术语表与禁止说法**。

@@ -1,4 +1,4 @@
-# 校园智能助手 —— Python 依赖
+# 智伴校园 —— Python 依赖
 # 安装：pip install -r requirements.txt
 # 若下载慢可加国内镜像：-i https://pypi.tuna.tsinghua.edu.cn/simple
 
