@@ -299,6 +299,57 @@
   }
   .acct-meta code:hover{background:rgba(var(--brand-rgb),.13);color:var(--brand-deep)}
 
+  /* ── 问答记录 ─────────────────────
+     一条问答一张卡：头行给"什么时候、谁问的、用的哪个助手、结果如何"，
+     下面两行是问题与回答；点一下展开看完整回答与命中的资料。 */
+  .rec-filters{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
+  .rec-filters input[type="text"],.rec-filters input:not([type]){flex:1;min-width:200px}
+  .rec-filters .chk{
+    display:inline-flex;align-items:center;gap:7px;font-size:12.5px;color:var(--text-2);
+    padding:8px 13px;border-radius:12px;border:1px solid var(--line);background:#fff;cursor:pointer;
+  }
+  .rec-filters .chk input{width:auto;accent-color:var(--brand);cursor:pointer}
+
+  .rec{
+    border:1px solid var(--line);border-radius:16px;margin-bottom:10px;background:#fff;
+    transition:.18s;overflow:hidden;
+  }
+  .rec:hover{border-color:rgba(var(--brand-rgb),.28)}
+  .rec.miss{background:#fffbf8;border-color:#f7dcc9}
+  .rec-h{
+    display:flex;align-items:center;gap:10px;padding:12px 15px;cursor:pointer;
+    user-select:none;flex-wrap:wrap;
+  }
+  .rec-when{font-size:11.5px;color:var(--text-3);font-variant-numeric:tabular-nums;flex-shrink:0}
+  .rec-who{font-size:12px;color:var(--text-2);font-weight:600}
+  .rec-who .sch{font-weight:400;color:var(--text-3)}
+  .rec-h .spacer{flex:1}
+  .rec-cost{font-size:11px;color:var(--text-3);font-variant-numeric:tabular-nums}
+  .rec-arrow{color:var(--text-3);font-size:12px;transition:transform .22s}
+  .rec.open .rec-arrow{transform:rotate(180deg)}
+  .rec-q{
+    padding:0 15px 12px;font-size:13.5px;font-weight:600;line-height:1.6;
+    display:flex;gap:8px;
+  }
+  .rec-q .mk{color:var(--brand);flex-shrink:0}
+  .rec-b{
+    display:none;padding:0 15px 14px;border-top:1px dashed var(--line-2);
+    animation:rise .2s ease;
+  }
+  .rec.open .rec-b{display:block}
+  .rec-a{
+    margin-top:12px;font-size:13px;line-height:1.85;color:var(--text-2);
+    white-space:pre-wrap;word-break:break-word;max-height:320px;overflow-y:auto;
+  }
+  .rec-src{margin-top:11px;font-size:11.5px;color:var(--text-3);display:flex;gap:7px;flex-wrap:wrap}
+  .rec-src .s{
+    background:rgba(var(--brand-rgb),.09);border-radius:8px;padding:2px 9px;color:var(--brand-deep);
+  }
+  .rec-more{display:flex;justify-content:center;margin-top:6px}
+  /* 这几个都是 display:flex/inline-flex，浏览器默认的 [hidden]{display:none}
+     压不住它们 —— 不写这条，「加载更多」在只有两条记录时照样显示。 */
+  .btn[hidden],.rec-more[hidden]{display:none !important}
+
   .empty-tip{text-align:center;color:var(--text-3);font-size:12.5px;padding:26px 0}
 
   .toast{
@@ -338,6 +389,7 @@
     <!-- 上传文档排在知识库前面：进来第一件事通常是"把资料喂进去"，看文档管理是之后的事 -->
     <button class="nav-item" data-view="upload"><span class="ni">⬆️</span><span>上传文档</span></button>
     <button class="nav-item" data-view="kb"><span class="ni">📚</span><span>知识库</span><span class="nb" id="nb-docs">—</span></button>
+    <button class="nav-item" data-view="records"><span class="ni">📝</span><span>问答记录</span><span class="nb" id="nb-records">—</span></button>
     <button class="nav-item" data-view="accounts"><span class="ni">🔑</span><span>学校账号</span><span class="nb" id="nb-accounts">—</span></button>
     <button class="nav-item" data-view="system"><span class="ni">⚙️</span><span>系统状态</span></button>
 
@@ -416,6 +468,29 @@
             <button class="btn primary" id="do-upload" disabled>⬆️ 开始上传</button>
             <button class="btn" id="clear-list" disabled>清空列表</button>
           </div>
+        </div>
+      </div>
+
+      <!-- 问答记录：学生端每问一轮都在这里留一条 -->
+      <div class="view" id="v-records">
+        <div class="panel">
+          <div class="panel-h">
+            <h2>问答记录</h2>
+            <div class="desc" id="rec-desc">学生端每次提问都会留一条，最新的在最上面</div>
+            <div class="spacer"></div>
+            <button class="btn sm" id="rec-refresh">↻ 刷新</button>
+            <button class="btn sm" id="rec-export">⬇ 导出 CSV</button>
+            <button class="btn sm danger" id="rec-clear" title="清空记录（学校管理员只清本校）">🗑 清空</button>
+          </div>
+
+          <div class="rec-filters">
+            <input type="text" id="rec-q" placeholder="搜索问题 / 回答 / 账号 / 学校…（回车生效）">
+            <select id="rec-assistant"><option value="">全部助手</option></select>
+            <label class="chk"><input type="checkbox" id="rec-miss"><span>只看没答出来的</span></label>
+          </div>
+
+          <div id="rec-list"><div class="empty-tip">加载中…</div></div>
+          <div class="rec-more" id="rec-more" hidden><button class="btn sm" id="rec-more-btn">加载更多</button></div>
         </div>
       </div>
 
@@ -532,6 +607,7 @@
   const VIEW_META = {
     overview:   ["概览", "知识库整体情况一览"],
     kb:         ["知识库", "按分类查看与管理文档"],
+    records:    ["问答记录", "学生问过什么、答得怎么样，每次问答都留了一条"],
     upload:     ["上传文档", "传上来就行，系统自动判断归到哪个分类"],
     accounts:   ["学生账号", ""],        // 副标题留空 = 该视图不显示那行小字
     system:     ["系统状态", "运行参数、回收站与危险操作"],
@@ -583,6 +659,7 @@
       $("view-sub").style.display = subTxt ? "" : "none";
       if (v === "system") { loadTrash(); loadSiteSettings(); }
       if (v === "accounts") loadAccounts();
+      if (v === "records") loadRecords(true);
     });
   });
 
@@ -617,12 +694,19 @@
     const llmOk = llm.running && llm.model_ready;
     $("nb-docs").textContent = s.doc_count || 0;
 
+    // 问答记录：概览页只显示两个数（今天问了多少、多少答不出来），
+    // 明细在「问答记录」那一页，侧栏角标也顺手更新掉。
+    const rec = DATA.records || {};
+    $("nb-records").textContent = rec.total || 0;
+
     const cards = [
       ["小助手", s.assistant_count || 0, ""],
       ["已建索引", (s.built_count || 0) + " / " + (s.assistant_count || 0), (s.built_count < s.assistant_count) ? "warn" : ""],
       ["文档", s.doc_count || 0, ""],
       ["知识片段", s.chunk_count || 0, ""],
       ["推理服务", llmOk ? "正常" : (llm.running ? "缺模型" : "未连接"), llmOk ? "" : "warn"],
+      ["今日提问", rec.today || 0, ""],
+      ["没答出来", rec.no_hit || 0, rec.no_hit ? "warn" : ""],
       ["回收站", s.trash_count || 0, ""],
     ];
     $("stat-cards").innerHTML = cards.map(([k, v, cls]) =>
@@ -1219,6 +1303,140 @@
 
   const accRefresh = $("acc-refresh");
   if (accRefresh) accRefresh.addEventListener("click", () => { loadAccounts(); toast("已刷新"); });
+
+  /* ══ 问答记录 ═══════════════════════
+     数据来自 data/logs/qa.jsonl —— 学生端每次 /api/chat 走完一轮就追加一条。
+     这里只管翻页、筛选、展开看详情，不做任何写操作（唯一写是「清空」）。 */
+  let REC = { offset: 0, total: 0, limit: 40, scope: null };
+
+  async function loadRecords(reset) {
+    if (reset) { REC.offset = 0; }
+    const box = $("rec-list");
+    if (reset) box.innerHTML = '<div class="empty-tip">加载中…</div>';
+
+    const p = new URLSearchParams();
+    p.set("limit", REC.limit);
+    p.set("offset", REC.offset);
+    const a = $("rec-assistant").value; if (a) p.set("assistant", a);
+    const q = $("rec-q").value.trim(); if (q) p.set("q", q);
+    if ($("rec-miss").checked) p.set("miss", "1");
+
+    try {
+      const d = await api("/api/admin/records?" + p.toString());
+      renderRecords(d, reset);
+    } catch (e) {
+      box.innerHTML = '<div class="empty-tip">加载失败：' + esc(e.message) + '</div>';
+    }
+  }
+
+  function renderRecords(d, reset) {
+    const box = $("rec-list");
+    const items = d.items || [];
+    REC.offset = (d.offset || 0) + items.length;
+    REC.total = d.total || 0;
+
+    // 助手下拉：列出"被问过的"，比从索引取更贴合实际（没被问过的不占位置）
+    const sel = $("rec-assistant");
+    const cur = sel.value;
+    sel.innerHTML = '<option value="">全部助手</option>' +
+      (d.assistants || []).map((n) =>
+        '<option value="' + esc(n) + '">' + esc(n) + '</option>').join("");
+    sel.value = cur;
+
+    const s = d.summary || {};
+    $("nb-records").textContent = s.total || 0;
+
+    // 范围由服务端给（scope=null 表示全部）。学校管理员看到的是**本校**的数，
+    // 前面加个"本校"而不是"共"，免得误以为库里就这么多。
+    REC.scope = (d.scope === undefined) ? null : d.scope;
+    const scoped = REC.scope !== null;
+    $("rec-desc").textContent = s.total
+      ? (scoped ? "本校 " : "共 ") + s.total + " 条 · 今天 " + s.today +
+        " 条 · 没答出来 " + s.no_hit + " 条"
+      : (scoped ? "本校还没有问答记录"
+                : "学生端每次提问都会留一条，最新的在最上面");
+
+    const more = $("rec-more");
+
+    if (!items.length) {
+      box.innerHTML = '<div class="empty-tip">' + (s.total
+        ? "没有符合筛选条件的记录"
+        : "还没有问答记录 —— 去学生端问一句，这里就出现了") + '</div>';
+      if (more) more.hidden = true;
+      return;
+    }
+
+    const html = items.map(recCard).join("");
+    if (reset) box.innerHTML = html; else box.innerHTML += html;
+    // 隐藏的是外层容器（按钮本身是 inline-flex，光设 hidden 会被 display 盖掉）
+    if (more) more.hidden = REC.offset >= REC.total;
+  }
+
+  function recCard(r) {
+    const miss = r.no_hit || r.interrupted;
+    const tag = r.interrupted ? '<span class="tag err">中断</span>'
+      : r.no_hit ? '<span class="tag warn">没答出来</span>'
+        : '<span class="tag ok">正常</span>';
+    const who = r.name || r.user || "访客";
+    const sch = r.school ? ' <span class="sch">· ' + esc(r.school) + '</span>' : "";
+    const src = (r.sources || []).length
+      ? '<div class="rec-src"><span>命中资料</span>' +
+        r.sources.map((x) => '<span class="s">' + esc(x) + '</span>').join("") + '</div>'
+      : '<div class="rec-src"><span>没有命中任何资料</span></div>';
+    return '\n<div class="rec ' + (miss ? "miss" : "") + '">' +
+      '<div class="rec-h">' +
+        '<span class="rec-when">' + esc(String(r.time || "").slice(5, 16)) + '</span>' +
+        '<span class="rec-who">' + esc(who) + sch + '</span>' +
+        '<span class="tag gray">' + esc(r.assistant || "自动路由") + '</span>' +
+        tag +
+        '<span class="spacer"></span>' +
+        '<span class="rec-cost">' + (r.elapsed ? r.elapsed + "s" : "—") +
+          " · " + (r.chars || 0) + ' 字</span>' +
+        '<span class="rec-arrow">▾</span>' +
+      '</div>' +
+      '<div class="rec-q"><span class="mk">Q</span><span>' + esc(r.question) + '</span></div>' +
+      '<div class="rec-b">' +
+        '<div class="rec-a">' + esc(r.answer || "（这轮没有产生回答）") + '</div>' +
+        src +
+      '</div></div>';
+  }
+
+  const recList = $("rec-list");
+  if (recList) {
+    recList.addEventListener("click", (e) => {
+      const head = e.target.closest(".rec-h");
+      if (head) head.parentElement.classList.toggle("open");
+    });
+  }
+  const recRefresh = $("rec-refresh");
+  if (recRefresh) recRefresh.addEventListener("click", () => { loadRecords(true); toast("已刷新"); });
+  const recMoreBtn = $("rec-more-btn");
+  if (recMoreBtn) recMoreBtn.addEventListener("click", () => loadRecords(false));
+  const recSearch = $("rec-q");
+  if (recSearch) recSearch.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") loadRecords(true);
+  });
+  const recSel = $("rec-assistant");
+  if (recSel) recSel.addEventListener("change", () => loadRecords(true));
+  const recMissBox = $("rec-miss");
+  if (recMissBox) recMissBox.addEventListener("change", () => loadRecords(true));
+  const recExport = $("rec-export");
+  if (recExport) recExport.addEventListener("click", () => {
+    location.href = "/api/admin/records/export";     // 浏览器直接下载，不用前端拼串
+  });
+  const recClear = $("rec-clear");
+  if (recClear) recClear.addEventListener("click", async () => {
+    // 超管清全部；学校管理员只清本校 —— 文案要跟着身份变，别让人以为一刀清光
+    const mine = REC.scope !== null;
+    if (!confirm("清空" + (mine ? "本校" : "全部") + "问答记录？\n\n"
+                 + (mine ? "别的学校的记录不受影响。\n" : "")
+                 + "只清后台记录，知识库和账号不受影响。")) return;
+    try {
+      const d = await api("/api/admin/records", { method: "DELETE" });
+      toast("已清空 " + (d.removed || 0) + " 条记录", "ok");
+      loadRecords(true);
+    } catch (e) { toast(e.message, "err"); }
+  });
 
   /* ── 顶栏 / 危险操作 ─────────────── */
   $("logout").addEventListener("click", async () => {

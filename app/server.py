@@ -23,7 +23,8 @@ from fastapi.responses import (FileResponse, JSONResponse, RedirectResponse,
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from app import accounts, admin, assistants, auth, classifier, config, faq, site
+from app import (accounts, admin, assistants, auth, classifier, config, faq,
+                 records, site)
 from app.indexer import build_index, index_status, store
 from app.llm import client as ollama
 from app.rag import engine
@@ -194,6 +195,21 @@ async def faq_api(request: Request):
 # --------------------------------------------------------------------------
 # 问答（SSE 流式）
 # --------------------------------------------------------------------------
+def _used_assistant(requested: str, done: Optional[dict]) -> str:
+    """这一轮实际用的是哪个助手。
+
+    请求里写 auto 时只是"让系统自己判断"，真正落到哪个知识库要看路由结果。
+    记录里存真实那个才有意义 —— 后台一眼能看出哪类问题被分给了谁。
+    """
+    route = ((done or {}).get("trace") or {}).get("route") or {}
+    sel = route.get("selected") or []
+    if len(sel) == 1:
+        return str(sel[0])
+    if requested and requested != "auto":
+        return str(requested)
+    return "自动路由"
+
+
 @app.post("/api/chat")
 async def chat(request: Request, req: ChatRequest):
     """问答主链路（SSE）。需已登录 —— 学生端和门户之外拿到这个接口也没用。"""
@@ -202,16 +218,51 @@ async def chat(request: Request, req: ChatRequest):
                             status_code=401)
     history = [m.model_dump() for m in req.history]
 
+    # 提问的人：记录里要落"谁问的"，管理端那页才能按学校 / 账号看
+    me = _identity(request)
+    who = me.as_dict() if me is not None else {}
+
     async def event_stream():
+        parts: List[str] = []
+        sources: List[dict] = []
+        done: Optional[dict] = None
+        interrupted = False
         try:
             async for evt in engine.answer_stream(req.question, history,
                                                   assistant=req.assistant):
+                kind = evt.get("type")
+                # 顺手把要记录的东西攒下来（不额外多跑一遍链路）
+                if kind == "delta":
+                    parts.append(str(evt.get("data") or ""))
+                elif kind == "sources":
+                    sources = evt.get("data") or []
+                elif kind == "done":
+                    done = evt.get("data") or {}
                 yield f"data: {json.dumps(evt, ensure_ascii=False)}\n\n"
         except asyncio.CancelledError:      # 用户关掉页面 → 停止生成
+            interrupted = True
             raise
         except Exception as e:
             payload = {"type": "error", "data": f"服务异常：{e}"}
             yield f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
+        finally:
+            # 后台记录：无论正常结束、报错还是中途关页面，都留一条。
+            # 放在 finally 里且用同步写 —— 生成器被取消时 await 会直接抛错，
+            # 而这里只是往一行 jsonl 追加，耗时微秒级，不拖慢事件循环。
+            records.add({
+                "user": who.get("username", ""),
+                "name": who.get("name", ""),
+                "school": who.get("school", ""),
+                "role": who.get("role", ""),
+                "assistant": _used_assistant(req.assistant, done),
+                "question": req.question,
+                "answer": "".join(parts),
+                "elapsed": (done or {}).get("elapsed"),
+                "chars": (done or {}).get("chars"),
+                "no_hit": bool((done or {}).get("no_hit")),
+                "interrupted": interrupted,
+                "sources": [h.get("source") for h in sources if isinstance(h, dict)],
+            })
 
     return StreamingResponse(
         event_stream(),
@@ -502,7 +553,78 @@ async def admin_overview(request: Request, token: str = ""):
     }
     data["llm"] = await ollama.health()
     data["accounts"] = accounts.stats()
+    # 问答记录统计也按范围给：学校管理员在概览上看到的"今日提问/没答出来"
+    # 必须是本校的数，不能把兄弟学校的量算进来
+    data["records"] = await asyncio.to_thread(
+        records.summary, None, _record_scope(request, token))
     return data
+
+
+# ── 问答记录：学生端问了什么，管理端在这里看 ──────────────────────────────
+def _record_scope(request: Request, token: str = "") -> Optional[str]:
+    """问答记录能看到哪个范围的记录。
+
+    返回 None  = 不限（超级管理员、或带旁路口令的脚本调用）；
+    返回 "某校" = 只看这个学校（学校管理员）。
+
+    ⚠️ 这是**数据层**的收口：学生端接口不带学校过滤，所以就算绕过页面
+    直接打这几个接口，学校管理员也拿不到别校的记录 —— 不能只靠前端藏。
+    """
+    if _api_token_ok(request, token):
+        return None                       # 旁路口令视同超管
+    me = _identity(request)
+    if me is None or me.is_super:
+        return None
+    return me.school or ""                # 学校没填 → 只看"学校为空"的那批
+
+
+@app.get("/api/admin/records")
+async def admin_records(request: Request, token: str = "", limit: int = 50,
+                        offset: int = 0, assistant: str = "", q: str = "",
+                        miss: int = 0):
+    """倒序翻问答记录，可按助手 / 关键词过滤，miss=1 只看没答出来的。
+
+    超级管理员看全部；学校管理员只看本校的（见 _record_scope）。
+    """
+    bad = _guard(request, token)
+    if bad:
+        return bad
+    sc = _record_scope(request, token)
+    data = await asyncio.to_thread(
+        records.query, limit=limit, offset=offset, assistant=assistant,
+        keyword=q, miss_only=bool(miss), school=sc)
+    data["assistants"] = await asyncio.to_thread(records.assistants, sc)
+    return data
+
+
+@app.delete("/api/admin/records")
+async def admin_records_clear(request: Request, token: str = ""):
+    """清空问答记录。
+
+    超级管理员清全部；学校管理员**只清本校的**，别校的记录原样留着。
+    """
+    bad = _guard(request, token)
+    if bad:
+        return bad
+    sc = _record_scope(request, token)
+    n = await asyncio.to_thread(records.clear, sc)
+    return {"ok": True, "removed": n, "scope": sc}
+
+
+@app.get("/api/admin/records/export")
+async def admin_records_export(request: Request, token: str = ""):
+    """导出成 CSV（带 BOM，Excel 双击不乱码）。范围同列表接口。"""
+    bad = _guard(request, token)
+    if bad:
+        return bad
+    sc = _record_scope(request, token)
+    rows = await asyncio.to_thread(records.export_rows, sc)
+    name = "qa-records.csv" if sc is None else f"qa-records-{sc or '未填学校'}.csv"
+    from urllib.parse import quote
+    return Response(content=records.to_csv(rows),
+                    media_type="text/csv; charset=utf-8",
+                    headers={"Content-Disposition":
+                             f"attachment; filename*=UTF-8''{quote(name)}"})
 
 
 @app.get("/api/site")
