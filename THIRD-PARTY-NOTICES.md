@@ -12,6 +12,7 @@
 | --- | --- | --- | --- |
 | FastAPI | 0.141.1 | MIT | Web 服务框架 |
 | Uvicorn | 0.54.0 | BSD-3-Clause | ASGI 服务器 |
+| Ollama | 0.40.6 | MIT | 本地模型运行时，监听 127.0.0.1:11434 |
 | python-multipart | 0.0.32 | Apache-2.0 | 表单与文件上传解析 |
 | python-docx | 1.2.0 | MIT | Word 文档解析 |
 | pypdf | 6.19.0 | BSD-3-Clause | PDF 文档解析 |
