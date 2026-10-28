@@ -160,6 +160,15 @@
   .lock-entry{width:100%;justify-content:center;gap:7px;background:#fff}
   .lock-entry .lk{font-size:13px;line-height:1}
 
+  /* 开源插件：做成小助手卡片那种份量，不缩成小胶囊 */
+  #plugin-entry{
+    padding:17px 14px;font-size:14.5px;font-weight:600;border-radius:13px;
+    color:var(--brand-deep);border-color:rgba(var(--brand-rgb),.28);
+    background:rgba(var(--brand-rgb),.06);gap:8px;
+  }
+  #plugin-entry:hover{background:rgba(var(--brand-rgb),.14);border-color:rgba(var(--brand-rgb),.5)}
+  #plugin-entry .lk{font-size:17px;line-height:1}
+
   .spacer{flex:1}
 
   /* 对话区做成 flex 列；.wrap 至少撑满一屏，于是只有欢迎区时
@@ -563,6 +572,11 @@
         <div class="hint">加载中…</div>
       </div>
     </div>
+
+    <!-- 开源插件：管理端配了链接并打开开关才会出现，位置在小助手与管理员之间 -->
+    <button class="back lock-entry" id="plugin-entry" type="button" hidden>
+      <span class="lk">🧩</span><span>开源插件</span>
+    </button>
 
     <div class="me" id="me">
       <span class="me-dot"></span>
@@ -1507,19 +1521,17 @@
       entry.addEventListener("click", () => { location.href = "/admin"; });
     }
 
-    /* 校园地图入口：管理端在「系统状态 → 校园地图」里配好地址并打开开关，
-       这里才会出现那个 📍 图标；没配就保持隐藏，页面一切照旧。 */
-    (async function mapEntry() {
-      const btn = $("map-btn");
+    /* 开源插件入口：管理端在「开源插件」页填了链接并打开开关，这里才出现；
+       位置在小助手卡片和超级管理员之间，点开在新标签页打开。 */
+    (async function pluginEntry() {
+      const btn = $("plugin-entry");
       if (!btn) return;
       try {
         const s = await fetch("/api/site").then((r) => r.json());
         if (!s.map_enabled || !s.map_url) return;
-        btn.title = s.map_label || "校园地图";
+        btn.title = s.map_label || "开源插件";
         btn.hidden = false;
-        btn.addEventListener("click", (e) => {
-          e.preventDefault();
-          e.stopPropagation();          // 别把外层 brand 的跳转也带出来
+        btn.addEventListener("click", () => {
           window.open(s.map_url, "_blank", "noopener");
         });
       } catch (e) { /* 拿不到配置就不显示，不影响其它 */ }

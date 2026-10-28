@@ -391,6 +391,7 @@
     <button class="nav-item" data-view="kb"><span class="ni">📚</span><span>知识库</span><span class="nb" id="nb-docs">—</span></button>
     <button class="nav-item" data-view="records"><span class="ni">📝</span><span>问答记录</span><span class="nb" id="nb-records">—</span></button>
     <button class="nav-item" data-view="accounts"><span class="ni">🔑</span><span>学校账号</span><span class="nb" id="nb-accounts">—</span></button>
+    <button class="nav-item" data-view="plugin"><span class="ni">🧩</span><span>开源插件</span></button>
     <button class="nav-item" data-view="system"><span class="ni">⚙️</span><span>系统状态</span></button>
 
     <div class="sidebar-foot">
@@ -541,18 +542,20 @@
       </div>
 
       <!-- 系统状态 -->
-      <div class="view" id="v-system">
+      <!-- 开源插件：管理员填一个外部链接，学生在学生端能打开 -->
+      <div class="view" id="v-plugin">
         <div class="panel">
           <div class="panel-h">
-            <h2>校园地图</h2>
+            <h2>开源插件</h2>
+            <div class="desc">填一个外部链接，学生在学生端就能打开（如校园地图、第三方工具）</div>
           </div>
           <div class="site-form">
-            <label><span>地图地址</span>
+            <label><span>插件链接</span>
               <input id="map-url" maxlength="500"
-                     placeholder="https://example.com/campus-map/">
+                     placeholder="https://example.com/plugin/">
             </label>
             <label><span>入口名称（鼠标悬停时显示）</span>
-              <input id="map-label" maxlength="20" placeholder="校园地图">
+              <input id="map-label" maxlength="20" placeholder="开源插件">
             </label>
             <label class="chk">
               <input type="checkbox" id="map-enabled">
@@ -565,6 +568,9 @@
             </div>
           </div>
         </div>
+      </div>
+
+      <div class="view" id="v-system">
         <div class="panel">
           <div class="panel-h"><h2>运行参数</h2><div class="desc">来自 app/config.py，改参数请改文件</div></div>
           <div class="kv" id="cfg-kv"></div>
@@ -611,6 +617,7 @@
     upload:     ["上传文档", "传上来就行，系统自动判断归到哪个分类"],
     accounts:   ["学生账号", ""],        // 副标题留空 = 该视图不显示那行小字
     system:     ["系统状态", "运行参数、回收站与危险操作"],
+    plugin:     ["开源插件", "填一个外部链接，学生在学生端能打开"],
   };
 
   /* ── 工具 ───────────────────────── */
@@ -658,6 +665,7 @@
       $("view-sub").textContent = subTxt;
       $("view-sub").style.display = subTxt ? "" : "none";
       if (v === "system") { loadTrash(); loadSiteSettings(); }
+      if (v === "plugin") loadSiteSettings();
       if (v === "accounts") loadAccounts();
       if (v === "records") loadRecords(true);
     });
