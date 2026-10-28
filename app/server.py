@@ -699,6 +699,174 @@ async def admin_account_create(request: Request, req: AccountCreateRequest,
     return {"ok": True, "account": item}
 
 
+# ── 批量开号：管理员传一份 Excel / CSV，一次性把学生账号建好 ──────────────
+def _read_table(data: bytes, filename: str) -> List[List[str]]:
+    """把 xlsx / csv 读成二维字符串表。xlsx 用标准库解析（zip + XML），不引第三方依赖。"""
+    name = (filename or "").lower()
+
+    if name.endswith(".csv") or name.endswith(".txt"):
+        text = None
+        for enc in ("utf-8-sig", "utf-8", "gbk", "gb18030"):
+            try:
+                text = data.decode(enc)
+                break
+            except UnicodeDecodeError:
+                continue
+        if text is None:
+            raise ValueError("CSV 编码无法识别，请另存为 UTF-8")
+        rows = []
+        for line in text.splitlines():
+            if not line.strip():
+                continue
+            # 简单 CSV：支持双引号包裹的逗号
+            cells, cur, in_q = [], "", False
+            for ch in line:
+                if ch == '"':
+                    in_q = not in_q
+                elif ch == "," and not in_q:
+                    cells.append(cur); cur = ""
+                else:
+                    cur += ch
+            cells.append(cur)
+            rows.append([c.strip().strip('"').strip() for c in cells])
+        return rows
+
+    if not name.endswith(".xlsx"):
+        raise ValueError("只支持 .xlsx 或 .csv")
+
+    import io
+    import re as _re
+    import zipfile as _zip
+    from xml.etree import ElementTree as _ET
+
+    NS = "{http://schemas.openxmlformats.org/spreadsheetml/2006/main}"
+    z = _zip.ZipFile(io.BytesIO(data))
+
+    shared: List[str] = []
+    if "xl/sharedStrings.xml" in z.namelist():
+        root = _ET.fromstring(z.read("xl/sharedStrings.xml"))
+        for si in root.findall(NS + "si"):
+            shared.append("".join(t.text or "" for t in si.iter(NS + "t")))
+
+    sheets = [n for n in z.namelist() if _re.match(r"xl/worksheets/sheet\d+\.xml$", n)]
+    if not sheets:
+        raise ValueError("这个 xlsx 里没有工作表")
+    root = _ET.fromstring(z.read(sorted(sheets)[0]))
+
+    table: List[List[str]] = []
+    for row in root.iter(NS + "row"):
+        cells: Dict[int, str] = {}
+        for c in row.findall(NS + "c"):
+            ref = c.get("r") or ""
+            m = _re.match(r"([A-Z]+)", ref)
+            if not m:
+                continue
+            idx = 0
+            for ch in m.group(1):
+                idx = idx * 26 + (ord(ch) - 64)
+            idx -= 1
+            t = c.get("t")
+            v = c.find(NS + "v")
+            if t == "s" and v is not None and v.text:
+                cells[idx] = shared[int(v.text)] if int(v.text) < len(shared) else ""
+            elif t == "inlineStr":
+                node = c.find(NS + "is")
+                cells[idx] = "".join(x.text or "" for x in node.iter(NS + "t")) if node is not None else ""
+            else:
+                cells[idx] = v.text if (v is not None and v.text) else ""
+        if cells:
+            width = max(cells) + 1
+            table.append([(cells.get(i) or "").strip() for i in range(width)])
+    return table
+
+
+# 表头里可能出现的中文叫法 → 内部字段
+_COL_ALIAS = {
+    "username": ("账号", "用户名", "学号", "登录名", "user", "username", "account"),
+    "password": ("密码", "口令", "初始密码", "password", "pass"),
+    "school": ("学校", "院校", "学校/大学", "校名", "school"),
+    "name": ("姓名", "学生姓名", "名字", "name"),
+    "role": ("身份", "角色", "类型", "role"),
+}
+
+
+@app.post("/api/admin/accounts/import")
+async def admin_account_import(request: Request, file: UploadFile = File(...),
+                               school: str = "", token: str = ""):
+    """管理员传 Excel/CSV，批量开通账号。
+
+    表头认这些写法（大小写与空格无所谓）：
+        账号 / 学号  密码  学校  姓名  身份
+    没有表头也行，但列顺序必须是：账号, 密码, 学校, 姓名, 身份。
+    身份留空按「学生」处理；只有超级管理员能在表里写「管理员」。
+    """
+    bad = _guard(request, token)
+    if bad:
+        return bad
+
+    me = _identity(request)
+    i_am_super = (me is not None and me.is_super) or _api_token_ok(request, token)
+
+    raw = await file.read()
+    if not raw:
+        return JSONResponse({"ok": False, "error": "文件是空的"}, status_code=400)
+    if len(raw) > 5 * 1024 * 1024:
+        return JSONResponse({"ok": False, "error": "文件超过 5 MB"}, status_code=400)
+
+    try:
+        table = await asyncio.to_thread(_read_table, raw, file.filename or "")
+    except Exception as e:
+        return JSONResponse({"ok": False, "error": f"读取失败：{e}"}, status_code=400)
+
+    table = [r for r in table if any(x.strip() for x in r)]
+    if not table:
+        return JSONResponse({"ok": False, "error": "表里没有内容"}, status_code=400)
+
+    # 判断第一行是表头还是数据
+    first = [c.strip().lower() for c in table[0]]
+    header_map: Dict[str, int] = {}
+    for field, aliases in _COL_ALIAS.items():
+        for i, cell in enumerate(first):
+            if cell in [a.lower() for a in aliases]:
+                header_map[field] = i
+                break
+    has_header = "username" in header_map and "password" in header_map
+    body = table[1:] if has_header else table
+    if not has_header:
+        header_map = {"username": 0, "password": 1, "school": 2, "name": 3, "role": 4}
+
+    def pick(row: List[str], field: str) -> str:
+        i = header_map.get(field, -1)
+        return row[i].strip() if 0 <= i < len(row) else ""
+
+    rows = [{
+        "username": pick(r, "username"),
+        "password": pick(r, "password"),
+        "school": pick(r, "school") or school,
+        "name": pick(r, "name"),
+        "role": pick(r, "role"),
+    } for r in body]
+
+    if not rows:
+        return JSONResponse({"ok": False, "error": "除了表头没有数据行"}, status_code=400)
+    if len(rows) > 500:
+        return JSONResponse({"ok": False, "error": "一次最多导入 500 个账号"}, status_code=400)
+
+    result = await asyncio.to_thread(
+        accounts.create_many, rows, school, i_am_super)
+    return {
+        "ok": True,
+        "total": len(rows),
+        "created": len(result["created"]),
+        "skipped": len(result["skipped"]),
+        "failed": len(result["failed"]),
+        "detail": {
+            "skipped": result["skipped"][:20],
+            "failed": result["failed"][:20],
+        },
+    }
+
+
 @app.delete("/api/admin/accounts")
 async def admin_account_delete(request: Request, username: str, token: str = ""):
     """删账号。删掉之后该账号已登录的会话下一次请求就失效了。"""

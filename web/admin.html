@@ -523,10 +523,15 @@
             </label>
             <div class="full" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
               <button class="btn primary" id="acc-create">＋ 创建账号</button>
+              <button class="btn" id="acc-import">📥 批量导入</button>
+              <button class="btn" id="acc-tpl">⬇ 下载模板</button>
+              <input type="file" id="acc-file" accept=".xlsx,.csv" hidden>
               <span style="font-size:11.5px;color:var(--text-3)" id="acc-hint">
                 账号 3~24 位字母数字；创建后立即可登录
               </span>
             </div>
+            <div class="full" id="acc-import-result" hidden
+                 style="font-size:12.5px;line-height:1.7;padding:10px 12px;border-radius:10px;background:rgba(0,0,0,.03)"></div>
           </div>
         </div>
 
@@ -1272,6 +1277,87 @@
       api("/api/admin/accounts?username=" + encodeURIComponent(u), { method: "DELETE" })
         .then(() => { toast(`已删除 ${u}`, "ok"); loadAccounts(); })
         .catch((err) => toast(err.message, "err"));
+    });
+  }
+
+  /* ── 批量导入：传 Excel/CSV，一次把全班账号建好 ────────────── */
+  const accImport = $("acc-import");
+  const accFile = $("acc-file");
+  const accResult = $("acc-import-result");
+
+  function showImportResult(d) {
+    if (!accResult) return;
+    const col = d.failed ? "var(--err)" : "var(--text-2)";
+    let html = '<b>导入完成</b>：共 ' + d.total + ' 行，'
+      + '<span style="color:var(--ok,#12a150)">成功 ' + d.created + '</span>'
+      + (d.skipped ? '，<span style="color:var(--text-3)">跳过 ' + d.skipped + '（已存在）</span>' : '')
+      + (d.failed ? '，<span style="color:' + col + '">失败 ' + d.failed + '</span>' : '');
+    const bad = (d.detail && d.detail.failed) || [];
+    const skip = (d.detail && d.detail.skipped) || [];
+    if (bad.length) {
+      html += '<div style="margin-top:6px;color:' + col + '">失败明细：'
+        + bad.map((x) => esc((x.username || '（空）') + ' — ' + x.reason)).join('；') + '</div>';
+    }
+    if (skip.length) {
+      html += '<div style="margin-top:4px;color:var(--text-3)">跳过明细：'
+        + skip.map((x) => esc(x.username)).join('、') + '</div>';
+    }
+    accResult.innerHTML = html;
+    accResult.hidden = false;
+  }
+
+  if (accImport && accFile) {
+    accImport.addEventListener("click", () => accFile.click());
+    accFile.addEventListener("change", async () => {
+      const f = accFile.files && accFile.files[0];
+      if (!f) return;
+      const school = ($("acc-school").value || "").trim();
+      const fd = new FormData();
+      fd.append("file", f);
+      const q = school ? ("?school=" + encodeURIComponent(school)) : "";
+
+      accImport.disabled = true;
+      accImport.textContent = "导入中…";
+      try {
+        const r = await fetch("/api/admin/accounts/import" + q, {
+          method: "POST", body: fd, credentials: "same-origin",
+        });
+        const d = await r.json().catch(() => ({}));
+        if (!r.ok || !d.ok) throw new Error(d.error || ("HTTP " + r.status));
+        showImportResult(d);
+        toast("导入完成：新建 " + d.created + " 个账号", d.failed ? "err" : "ok");
+        loadAccounts();
+      } catch (e) {
+        if (accResult) {
+          accResult.innerHTML = '<span style="color:var(--err)">导入失败：' + esc(e.message || "未知错误") + '</span>';
+          accResult.hidden = false;
+        }
+        toast("导入失败：" + (e.message || "未知错误"), "err");
+      } finally {
+        accImport.disabled = false;
+        accImport.textContent = "📥 批量导入";
+        accFile.value = "";            // 允许重选同一个文件
+      }
+    });
+  }
+
+  /* 下载模板：一行表头 + 两行示例，直接是 CSV，Excel 双击能开 */
+  const accTpl = $("acc-tpl");
+  if (accTpl) {
+    accTpl.addEventListener("click", () => {
+      const school = ($("acc-school").value || "A大学").trim() || "A大学";
+      const rows = [
+        "学校,账号,密码,姓名,身份",
+        school + ",2024001,123456,张三,学生",
+        school + ",2024002,123456,李四,学生",
+      ];
+      // 加 BOM，Excel 打开中文不乱码
+      const blob = new Blob(["\ufeff" + rows.join("\r\n")], { type: "text/csv;charset=utf-8" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = "账号导入模板.csv";
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
     });
   }
 

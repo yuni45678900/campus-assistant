@@ -134,6 +134,70 @@ def create(username: str, password: str, school: str = "", name: str = "",
     return item, ""
 
 
+def create_many(rows: List[dict], default_school: str = "",
+                allow_admin: bool = False) -> dict:
+    """批量开号：一次读盘、一次写盘，避免逐条创建时的重复 IO。
+
+    rows 每项形如 {"username","password","school","name","role"}。
+    返回 {"created": [...], "skipped": [...], "failed": [...]}，
+    三条列表里都是 {"username": ..., "reason": ...} 或 {"username": ..., "account": ...}。
+    """
+    created: List[dict] = []
+    skipped: List[dict] = []
+    failed: List[dict] = []
+    default_school = _clean(default_school, MAX_SCHOOL_LEN)
+
+    with _LOCK:
+        items = _read()
+        existing = {x.get("username") for x in items}
+
+        for row in rows:
+            u = (row.get("username") or "").strip()
+            pw = row.get("password") or ""
+            school = _clean(row.get("school") or default_school, MAX_SCHOOL_LEN)
+            name = _clean(row.get("name"), MAX_NAME_LEN)
+            role = (row.get("role") or "").strip()
+            role = ROLE_ADMIN if role in ("管理员", "学校管理员", "admin", "管理员老师") else ROLE_STUDENT
+
+            # 逐行校验，错一行不影响其他行
+            if not u or not pw:
+                failed.append({"username": u, "reason": "账号或密码为空"})
+                continue
+            if not USERNAME_RE.match(u):
+                failed.append({"username": u, "reason": "账号格式不合法"})
+                continue
+            if len(pw) > MAX_PASSWORD_LEN:
+                failed.append({"username": u, "reason": "密码过长"})
+                continue
+            if u == config.ADMIN_USER:
+                failed.append({"username": u, "reason": "与超级管理员账号重名"})
+                continue
+            if role == ROLE_ADMIN and not allow_admin:
+                failed.append({"username": u, "reason": "只有超级管理员能开管理员账号"})
+                continue
+            if u in existing:
+                skipped.append({"username": u, "reason": "账号已存在"})
+                continue
+
+            item = {
+                "username": u,
+                "password": pw,
+                "school": school,
+                "name": name,
+                "role": role,
+                "enabled": True,
+                "created_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+            }
+            items.append(item)
+            existing.add(u)
+            created.append({"username": u, "account": item})
+
+        if created:
+            _write(items)
+
+    return {"created": created, "skipped": skipped, "failed": failed}
+
+
 def remove(username: str) -> Tuple[bool, str]:
     """删账号。admin 是 .env 里的超级管理员，不在这张表里，删不到。"""
     u = (username or "").strip()
