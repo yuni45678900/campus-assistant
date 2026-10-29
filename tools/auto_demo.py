@@ -1,18 +1,26 @@
 # -*- coding: utf-8 -*-
-"""自动演示：按分镜顺序把学生端、管理端跑一遍，供录屏使用。
+"""自动演示 · 按宇哥定的录制顺序走一遍，供录屏配音。
 
-用法（服务要先起来）：
-    .venv\\Scripts\\python.exe tools/auto_demo.py            # 从门户开始，全自动
-    .venv\\Scripts\\python.exe tools/auto_demo.py --from 3   # 从第 3 幕开始（调试用）
-    .venv\\Scripts\\python.exe tools/auto_demo.py --slow     # 每步多停 1 秒，方便配音
+顺序：
+    1. 首页，讲两句
+    2. 点管理端 → 真输密码 admin11 → 进入
+    3. 概览（此时是空的）
+    4. 上传「伴学 / 招生 / 迎新」三个文件夹
+    5. 回概览，数据出来了
+    6. 学校账号：开通 A大学 学生「王五」，顺手点「下载模板」
+    7. 校园地图（**这段留给你自己录，脚本可以停在这儿等你**）
+    8. 系统状态：运行参数、回收站、危险操作（只看，不点）
+    9. 学生端：点「迎新助手」→ 常见问题里找「新生报到时间」
+   10. 再问「奖学金怎么评」，看自动路由
+   11. GitHub 开源页
 
-设计要点：
-  · 用可见 Chrome（不是 headless），你能直接录屏；
-  · 鼠标移动是插值的，不是瞬间跳，录像里看着自然；
-  · 输入框是逐字敲进去的，不是一次性粘贴；
-  · 每幕之间有停顿，留出旁白的呼吸时间。
+用法：
+    .venv\\Scripts\\python.exe tools/auto_demo.py
+    .venv\\Scripts\\python.exe tools/auto_demo.py --from 6
+    .venv\\Scripts\\python.exe tools/auto_demo.py --slow
+    .venv\\Scripts\\python.exe tools/auto_demo.py --pause-at 7 --from 7
 
-配音建议：先跑一遍记下每幕时间点，再对着这条时间轴念。
+录之前记得清空资料（demo_reset.bat），这样「传之前空、传之后有」的对比才成立。
 """
 
 from __future__ import annotations
@@ -24,61 +32,81 @@ import subprocess
 import sys
 import time
 import urllib.request
-import http.cookiejar
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from cdp_shot import CHROME, http_json, WS          # 复用已有的最小 CDP 客户端
+from cdp_shot import CHROME, http_json, WS
 
 PORT = 9333
 PROFILE = r"D:\campus-assistant\.workbuddy\tmp\autodemo-profile"
 BASE = "http://127.0.0.1:8000"
+ROOT = r"D:\campus-assistant"
+MATERIAL = os.path.join(ROOT, "演示素材")
+GITHUB = "https://github.com/yuni45678900/campus-assistant"
 
-SLOW = 0.0          # --slow 时每步额外等待的秒数
+SLOW = 0.0
+PAUSE_AT = 0
+CURRENT = [0]
 
 
-# ── 基础设施 ────────────────────────────────────────────────────────────────
-def login_cookie(username: str, password: str) -> str:
-    req = urllib.request.Request(
-        BASE + "/api/auth/login",
-        data=json.dumps({"username": username, "password": password}).encode(),
-        headers={"Content-Type": "application/json"})
-    cj = http.cookiejar.CookieJar()
-    opener = urllib.request.build_opener(
-        urllib.request.HTTPCookieProcessor(cj),
-        urllib.request.ProxyHandler({}))
-    opener.open(req, timeout=10).read()
-    for c in cj:
-        if c.name == "campus_session":
-            return c.value
-    raise RuntimeError("登录失败，拿不到会话 cookie")
+def net_ok() -> bool:
+    try:
+        urllib.request.build_opener(urllib.request.ProxyHandler({})).open(
+            BASE + "/api/status", timeout=5).read()
+        return True
+    except Exception:
+        return False
 
 
 class Demo:
     def __init__(self, ws: WS):
         self.ws = ws
-        self.w = 1440
-        self.h = 900
-        self._mouse = (self.w // 2, self.h // 2)
+        self._mouse = (720, 450)
+        self._t0 = time.time()
 
-    # ---- 基础动作 ----
+    # ── 基础动作 ─────────────────────────────────────────
     def wait(self, sec: float) -> None:
         time.sleep(sec + SLOW)
 
-    def goto(self, url: str, wait: float = 2.5) -> None:
+    def say(self, text: str) -> None:
+        """打印这一步该讲什么，同时贴在页面右下角。"""
+        el = time.time() - self._t0
+        print(f"  [{int(el)//60}:{int(el)%60:02d}] {text}", flush=True)
+        self.js("(()=>{let d=document.getElementById('__hint');"
+                "if(!d){d=document.createElement('div');d.id='__hint';"
+                "d.style.cssText='position:fixed;right:16px;bottom:14px;z-index:99999;"
+                "padding:8px 13px;border-radius:9px;background:rgba(0,0,0,.7);color:#fff;"
+                "font:12.5px/1.5 system-ui,sans-serif;max-width:520px;pointer-events:none';"
+                "document.body.appendChild(d);}"
+                f"d.textContent={text!r};}})()")
+
+    def hide_hint(self) -> None:
+        self.js("(()=>{const d=document.getElementById('__hint'); d&&d.remove();})()")
+
+    def js(self, expr: str):
+        r = self.ws.call("Runtime.evaluate", {"expression": expr, "returnByValue": True})
+        return (r.get("result") or {}).get("value")
+
+    def goto(self, url: str, wait: float = 2.6) -> None:
         self.ws.call("Page.navigate", {"url": url})
         self.wait(wait)
 
-    def move_to(self, x: int, y: int, steps: int = 18, pause: float = 0.35) -> None:
-        """把鼠标平滑挪到 (x, y)，录像里能看到轨迹而不是瞬移。"""
+    def rect(self, sel: str):
+        v = self.js(
+            "(()=>{const e=document.querySelector(%r); if(!e) return '';"
+            "const r=e.getBoundingClientRect();"
+            "if(r.width===0||r.height===0) return '';"
+            "return JSON.stringify({cx:Math.round(r.x+r.width/2),"
+            "cy:Math.round(r.y+r.height/2)});})()" % sel)
+        return json.loads(v) if v else None
+
+    def move_to(self, x: int, y: int, steps: int = 16, pause: float = 0.32) -> None:
         x0, y0 = self._mouse
         for i in range(1, steps + 1):
-            t = i / steps
-            # ease-out，前快后慢，接近真人
-            k = 1 - (1 - t) ** 2
-            cx = int(x0 + (x - x0) * k)
-            cy = int(y0 + (y - y0) * k)
+            k = 1 - (1 - i / steps) ** 2          # ease-out，像人手
             self.ws.call("Input.dispatchMouseEvent", {
-                "type": "mouseMoved", "x": cx, "y": cy, "buttons": 0})
+                "type": "mouseMoved",
+                "x": int(x0 + (x - x0) * k), "y": int(y0 + (y - y0) * k),
+                "buttons": 0})
             time.sleep(0.012)
         self._mouse = (x, y)
         time.sleep(pause)
@@ -87,252 +115,291 @@ class Demo:
         self.move_to(x, y)
         for kind in ("mousePressed", "mouseReleased"):
             self.ws.call("Input.dispatchMouseEvent", {
-                "type": kind, "x": x, "y": y,
-                "button": "left", "clickCount": 1, "buttons": 1 if kind == "mousePressed" else 0})
+                "type": kind, "x": x, "y": y, "button": "left",
+                "clickCount": 1, "buttons": 1 if kind == "mousePressed" else 0})
             time.sleep(0.06)
-        time.sleep(0.35)
+        time.sleep(0.3)
 
-    def click_sel(self, selector: str, wait: float = 0.8) -> bool:
-        """点一个有 CSS 选择器的元素：先取它的中心坐标，再真实点击。"""
-        box = self.rect(selector)
-        if not box:
-            print(f"    [跳过] 找不到 {selector}")
+    def click(self, sel: str, wait: float = 0.9) -> bool:
+        b = self.rect(sel)
+        if not b:
+            print(f"      (没找到 {sel})")
             return False
-        self.click_at(box["cx"], box["cy"])
+        self.click_at(b["cx"], b["cy"])
         self.wait(wait)
         return True
 
-    def rect(self, selector: str):
-        expr = (
-            "(()=>{const e=document.querySelector(%r); if(!e) return '';"
-            "const r=e.getBoundingClientRect();"
-            "if(r.width===0||r.height===0) return '';"
-            "return JSON.stringify({cx:Math.round(r.x+r.width/2),"
-            "cy:Math.round(r.y+r.height/2),w:Math.round(r.width),h:Math.round(r.height)});})()"
-            % selector)
-        v = self.js(expr)
-        if not v:
-            return None
-        try:
-            return json.loads(v)
-        except Exception:
-            return None
-
-    def js(self, expr: str):
-        r = self.ws.call("Runtime.evaluate", {"expression": expr, "returnByValue": True})
-        return (r.get("result") or {}).get("value")
-
-    def type_text(self, selector: str, text: str, per_char: float = 0.045) -> None:
-        """点进输入框，然后逐字敲进去。"""
-        if not self.click_sel(selector, wait=0.3):
+    def type_into(self, sel: str, text: str, cps: float = 0.07) -> None:
+        """点进输入框逐字敲 —— 密码框也这么输，镜头里能看到一个个字符出来。"""
+        if not self.click(sel, wait=0.35):
             return
-        self.js(f"(()=>{{const e=document.querySelector({selector!r}); e.value=''; e.focus();}})()")
+        self.js(f"(()=>{{const e=document.querySelector({sel!r});e.value='';e.focus();}})()")
         for ch in text:
             self.ws.call("Input.insertText", {"text": ch})
-            time.sleep(per_char)
-        time.sleep(0.25)
+            time.sleep(cps)
+        self.wait(0.3)
 
-    def press_enter(self) -> None:
-        """回车发送。注意 CDP 不接受 text=None，所以按类型分开传。"""
+    def enter(self) -> None:
         base = {"key": "Enter", "code": "Enter",
                 "windowsVirtualKeyCode": 13, "nativeVirtualKeyCode": 13}
         for kind in ("rawKeyDown", "char", "keyUp"):
-            params = dict(base, type=kind)
+            p = dict(base, type=kind)
             if kind == "char":
-                params["text"] = "\r"
-            self.ws.call("Input.dispatchKeyEvent", params)
+                p["text"] = "\r"
+            self.ws.call("Input.dispatchKeyEvent", p)
             time.sleep(0.05)
-        time.sleep(0.3)
+        self.wait(0.3)
 
-    def scroll_by(self, dy: int, ms: int = 900) -> None:
-        """平滑滚动，分 20 帧推完，录像里不会一跳一跳。"""
-        frames = 20
-        step = dy / frames
-        for _ in range(frames):
-            self.js(f"window.scrollBy(0, {step:.1f})")
-            time.sleep(ms / frames / 1000)
+    def scroll(self, dy: int, ms: int = 900) -> None:
+        for _ in range(20):
+            self.js(f"window.scrollBy(0, {dy/20:.1f})")
+            time.sleep(ms / 20000)
 
-    def scroll_to(self, selector: str, ms: int = 900) -> None:
-        self.js(f"(()=>{{const e=document.querySelector({selector!r});"
-                f"if(e) e.scrollIntoView({{behavior:'smooth',block:'center'}});}})()")
-        time.sleep(ms / 1000)
+    def upload_paths(self, sel: str, paths) -> bool:
+        """把真实文件塞进 <input type=file>，CDP 支持多文件。"""
+        doc = self.ws.call("DOM.getDocument", {"depth": -1})
+        node = self.ws.call("DOM.querySelector",
+                            {"nodeId": doc["root"]["nodeId"], "selector": sel})
+        nid = node.get("nodeId")
+        if not nid:
+            print(f"      (上传控件 {sel} 没找到)")
+            return False
+        self.ws.call("DOM.setFileInputFiles", {"files": list(paths), "nodeId": nid})
+        return True
 
-    def hint(self, text: str) -> None:
-        """在页面右下角显示当前这一幕的提示，同时打印时间戳，方便配音对齐。"""
-        if not hasattr(self, "_t0"):
-            self._t0 = time.time()
-        el = time.time() - self._t0
-        print(f"    [{int(el)//60}:{int(el)%60:02d}] {text}", flush=True)
-        self.js("(()=>{let d=document.getElementById('__demo_hint');"
-                "if(!d){d=document.createElement('div');d.id='__demo_hint';"
-                "d.style.cssText='position:fixed;right:18px;bottom:16px;z-index:99999;"
-                "padding:9px 14px;border-radius:10px;background:rgba(0,0,0,.72);color:#fff;"
-                "font:13px/1.5 system-ui,sans-serif;pointer-events:none';document.body.appendChild(d);}"
-                f"d.textContent={text!r};}})()")
-
-    def hide_hint(self) -> None:
-        self.js("(()=>{const d=document.getElementById('__demo_hint'); d&&d.remove();})()")
-
-    def wait_answer(self, timeout: float = 90) -> None:
-        """等流式回答结束（页面上的“停止/生成中”消失，或出现来源标注）。"""
-        t0 = time.time()
-        while time.time() - t0 < timeout:
-            busy = self.js(
-                "(()=>{const s=document.querySelector('#send');"
-                "return s && (s.disabled || s.classList.contains('busy'));})()")
+    def wait_answer(self, timeout: float = 120) -> None:
+        t = time.time()
+        while time.time() - t < timeout:
+            busy = self.js("(()=>{const s=document.querySelector('#send');"
+                           "return s && (s.disabled || s.classList.contains('busy'));})()")
             if not busy:
-                time.sleep(1.2)
+                time.sleep(1.5)
                 return
             time.sleep(0.5)
-        print("    [提示] 等回答超时，继续往下走")
+        print("      (等回答超时，继续往下走)")
 
 
-# ── 各幕 ────────────────────────────────────────────────────────────────────
-def act_portal(d: Demo) -> None:
-    d.hint("① 门户：说清两件事——信息散、通用模型不可信")
-    d.goto(BASE + "/", 3.0)
-    # 主标题停一下
-    d.move_to(700, 300, pause=1.2)
-    d.move_to(1120, 130, pause=1.5)      # 右上角“服务正常 · 3 个分类就绪”
-    d.move_to(430, 560, pause=1.2)       # 学生端卡片
-    d.move_to(1010, 560, pause=1.2)      # 管理端卡片
-    d.wait(1.5)
+def collect_folder(folder: str):
+    out = []
+    for cur, _d, files in os.walk(os.path.join(MATERIAL, folder)):
+        for f in files:
+            if f.lower().endswith((".docx", ".md", ".pdf", ".txt")):
+                out.append(os.path.join(cur, f))
+    return out
 
 
-def act_student_login(d: Demo, cookie: str) -> None:
-    d.hint("② 学生端：学校账号登录，不用先选分类")
-    d.ws.call("Network.setCookie", {
-        "name": "campus_session", "value": cookie,
-        "domain": "127.0.0.1", "path": "/"})
-    d.goto(BASE + "/student", 3.5)
-    d.move_to(378, 235, pause=0.9)       # 小助手卡片（自动路由）
-    d.move_to(378, 468, pause=0.7)       # 当前登录身份
-    d.wait(1.2)
+# ── 十一步 ──────────────────────────────────────────────────────────────────
+def step_home(d: Demo) -> None:
+    d.say("① 首页：校园信息散在各部门，缺一个统一入口")
+    d.goto(BASE + "/", 3.2)
+    d.move_to(700, 300, pause=1.6)
+    d.move_to(1130, 128, pause=1.4)
+    d.move_to(420, 560, pause=1.2)
+    d.move_to(1010, 560, pause=1.2)
+    d.wait(1.0)
 
 
-def act_ask(d: Demo, question: str, hint: str) -> None:
-    d.hint(hint)
-    box = d.rect("#input") or {"cx": 720, "cy": 800}
-    d.click_at(box["cx"], box["cy"])
-    d.type_text("#input", question, per_char=0.05)
-    d.wait(0.5)
-    d.press_enter()
-    d.wait(1.5)
-    d.wait_answer()
-
-
-def act_show_trace(d: Demo) -> None:
-    d.hint("③ 参考资料与决策链：答案是能查的")
-    # 展开“参考资料”
-    for sel in (".src-toggle", "#refs-toggle"):
-        if d.click_sel(sel, wait=1.6):
+def step_admin_login(d: Demo) -> None:
+    d.say("② 点管理端，输入管理员密码进入")
+    d.click("#admin-card", wait=1.6)
+    # 门户那张卡是 <a href="/admin">，点了会直接跳；跳过去未登录会弹登录框。
+    # 万一没跳（有的浏览器把 a 的跳转吞了），这里补一次导航。
+    # 等登录框出现（跳转+渲染要一点时间），最多等 8 秒
+    for _ in range(16):
+        if d.rect("#gate-user"):
             break
-    d.wait(1.6)
-    # 展开“决策链”
-    for sel in (".trace-toggle", "#trace-toggle"):
-        if d.click_sel(sel, wait=1.8):
-            break
+        d.wait(0.5)
+    if not d.rect("#gate-user"):
+        d.goto(BASE + "/admin", 2.5)
+        for _ in range(16):
+            if d.rect("#gate-user"):
+                break
+            d.wait(0.5)
+    d.wait(0.8)
+    d.type_into("#gate-user", "admin", cps=0.09)
+    d.type_into("#gate-pwd", "admin11", cps=0.09)
+    d.wait(0.6)
+    d.click("#gate-go", wait=3.2)
+
+
+def step_overview_empty(d: Demo) -> None:
+    d.say("③ 概览：还没传资料，数字都是零")
+    for x in (300, 520, 740, 960, 1180):
+        d.move_to(x, 248, pause=0.5)
     d.wait(1.8)
 
 
-def act_admin(d: Demo, admin_cookie: str) -> None:
-    d.hint("④ 管理端：概览 → 上传 → 知识库 → 账号 → 记录")
-    d.ws.call("Network.setCookie", {
-        "name": "campus_session", "value": admin_cookie,
-        "domain": "127.0.0.1", "path": "/"})
-    d.goto(BASE + "/admin", 3.5)
+def step_upload(d: Demo) -> None:
+    d.say("④ 把伴学、招生、迎新三个文件夹拖进来")
+    d.click('[data-view="upload"]', wait=2.2)
+    d.wait(0.8)
+    for folder in ("伴学", "招生", "迎新"):
+        paths = collect_folder(folder)
+        if not paths:
+            print(f"      ({folder} 没素材，跳过)")
+            continue
+        print(f"      {folder}: {len(paths)} 个文件")
+        d.click("#pick-dir", wait=0.7)        # 镜头上有个“选文件夹”的动作
+        if d.upload_paths("#dir-input", paths):
+            d.wait(2.4)
+        d.wait(0.6)
+    d.click("#do-upload", wait=3.0)
+    d.wait(3.5)                               # 等上传与后台建索引
 
-    # 概览：卡片逐个数过去
+
+def step_overview_full(d: Demo) -> None:
+    d.say("⑤ 回概览：文档数、片段数都上来了")
+    d.click('[data-view="overview"]', wait=2.8)
     for x in (300, 520, 740, 960, 1180):
-        d.move_to(x, 250, pause=0.55)
-    d.scroll_by(0)  # 占位，让视线停在原处
+        d.move_to(x, 248, pause=0.55)
+    d.scroll(260, 1000)
+    d.wait(1.8)
+
+
+def step_account(d: Demo) -> None:
+    d.say("⑥ 开通 A大学学生「王五」；也可以传 Excel 批量开")
+    for _ in range(12):                      # 等导航渲染出来
+        if d.rect('[data-view="accounts"]'):
+            break
+        d.wait(0.5)
+    d.click('[data-view="accounts"]', wait=2.4)
+    for _ in range(12):
+        if d.rect("#acc-school"):
+            break
+        d.wait(0.5)
+    d.wait(0.6)
+    d.type_into("#acc-school", "A大学", cps=0.08)
+    d.type_into("#acc-user", "wangwu", cps=0.08)
+    d.type_into("#acc-pass", "wangwu2026", cps=0.08)
+    d.type_into("#acc-name", "王五", cps=0.12)
+    d.wait(0.6)
+    d.click("#acc-create", wait=2.4)
+    d.click("#acc-tpl", wait=1.8)             # 顺手演示“下载模板”
     d.wait(1.0)
 
-    # 上传文档
-    d.click_sel('[data-view="upload"]', wait=2.0)
-    d.move_to(720, 420, pause=1.4)       # 拖拽区
-    d.wait(1.2)
 
-    # 知识库
-    d.click_sel('[data-view="kb"]', wait=2.2)
-    d.scroll_by(300, 1100)
-    d.wait(1.3)
-
-    # 学校账号
-    d.click_sel('[data-view="accounts"]', wait=2.0)
-    d.move_to(720, 430, pause=1.2)
-    d.wait(1.0)
-
-    # 问答记录
-    d.click_sel('[data-view="records"]', wait=2.2)
-    d.scroll_by(320, 1100)
-    d.wait(1.4)
-
-
-def act_map(d: Demo, admin_cookie: str) -> None:
-    d.hint("⑤ 校园地图：填链接 → 学生端就能打开")
-    d.click_sel('[data-view="plugin"]', wait=2.0)
-    d.move_to(700, 330, pause=1.2)       # 链接输入框
-    d.move_to(700, 470, pause=1.0)       # 开关
+def step_map(d: Demo) -> None:
+    d.say("⑦ 校园地图（这一段留给你手动录）")
+    d.click('[data-view="plugin"]', wait=2.0)
+    d.move_to(700, 330, pause=1.2)
+    d.move_to(700, 470, pause=1.0)
     d.wait(1.5)
+    if PAUSE_AT and PAUSE_AT == CURRENT[0]:
+        print("\n  ⏸  停在第 7 步。你手动演示校园地图，录完按回车继续 ...", flush=True)
+        input()
 
 
-def act_student_map(d: Demo, cookie: str) -> None:
-    d.hint("⑥ 回到学生端：侧栏多了一个入口")
-    d.ws.call("Network.setCookie", {
-        "name": "campus_session", "value": cookie,
-        "domain": "127.0.0.1", "path": "/"})
-    d.goto(BASE + "/student", 3.0)
-    box = d.rect("#plugin-entry")
-    if box:
-        d.move_to(box["cx"], box["cy"], pause=1.8)
+def step_system(d: Demo) -> None:
+    d.say("⑧ 系统状态：运行参数、回收站、危险操作（只看不点）")
+    d.click('[data-view="system"]', wait=2.2)
+    for y in (300, 360, 420, 480, 540, 600):
+        d.move_to(720, y, pause=0.42)
+    d.scroll(300, 1000)
+    d.wait(0.8)
+    b = d.rect("#trash-list")
+    if b:
+        d.move_to(b["cx"], b["cy"], pause=1.2)
+    d.scroll(320, 1000)
+    d.wait(0.8)
+    b = d.rect("#danger-rebuild")
+    if b:
+        d.move_to(b["cx"], b["cy"], pause=1.9)   # 只停不点
     d.wait(1.2)
 
 
-def act_end(d: Demo) -> None:
-    d.hint("⑦ 收尾：回到门户主标题")
-    d.hide_hint()
-    d.goto(BASE + "/", 2.5)
-    d.move_to(700, 300, pause=2.0)
+def step_student_faq(d: Demo) -> None:
+    d.say("⑨ 学生端：点「迎新助手」，常见问题里问新生报到时间")
+    d.goto(BASE + "/student", 3.2)
+    d.wait(0.8)
+    picked = d.js("(()=>{const e=[...document.querySelectorAll('.entries .entry')]"
+                  ".find(x=>x.textContent.includes('迎新')); "
+                  "if(!e) return ''; e.click(); return e.textContent.trim().slice(0,20);})()")
+    print(f"      进入助手：{picked or '(未找到迎新，接着走)'}")
+    d.wait(2.4)
+
+    hit = d.js("(()=>{const e=[...document.querySelectorAll('.faq-item')]"
+               ".find(x=>/报到|新生/.test(x.textContent)); "
+               "if(!e) return ''; e.click(); return e.textContent.trim().slice(0,26);})()")
+    if hit:
+        print(f"      点了常见问题：{hit}")
+        d.wait(2.0)
+        d.wait_answer()
+    else:
+        print("      (常见问题里没找到报到相关，跳过)")
+    d.wait(1.0)
+
+
+def step_student_auto(d: Demo) -> None:
+    d.say("⑩ 切回自动路由，问「奖学金怎么评」，看它自己找对助手")
+    d.js("(()=>{const e=[...document.querySelectorAll('.entries .entry')]"
+         ".find(x=>x.textContent.includes('自动')); if(e) e.click();})()")
+    d.wait(2.2)
+    d.type_into("#input", "奖学金怎么评", cps=0.05)
+    d.wait(0.4)
+    d.enter()
+    d.wait(1.5)
+    d.wait_answer()
+    d.click(".trace-toggle", wait=1.8)
+    d.wait(2.2)
+
+
+def step_github(d: Demo) -> None:
+    d.say("⑪ GitHub：代码、部署文档、许可清单都开源了")
+    d.goto(GITHUB, 5.5)
+    d.move_to(700, 380, pause=2.0)
+    d.scroll(420, 1200)
     d.wait(2.0)
 
 
-# ── 主流程 ──────────────────────────────────────────────────────────────────
-def main() -> int:
-    global SLOW
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--from", dest="start", type=int, default=1,
-                    help="从第几幕开始（1 门户 2 登录 3 提问 4 追踪 5 管理端 6 地图 7 收尾）")
-    ap.add_argument("--slow", action="store_true", help="每步多停 1 秒，方便配音")
-    ap.add_argument("--student", default="lixiaoyu", help="学生账号")
-    ap.add_argument("--student-pass", default="2003lyx0721")
-    ap.add_argument("--admin", default="admin")
-    ap.add_argument("--admin-pass", default="admin11")
-    args = ap.parse_args()
-    if args.slow:
-        SLOW = 1.0
+STEPS = [
+    (1, step_home),
+    (2, step_admin_login),
+    (3, step_overview_empty),
+    (4, step_upload),
+    (5, step_overview_full),
+    (6, step_account),
+    (7, step_map),
+    (8, step_system),
+    (9, step_student_faq),
+    (10, step_student_auto),
+    (11, step_github),
+]
 
-    # 服务得先活着
-    try:
-        urllib.request.build_opener(urllib.request.ProxyHandler({})).open(
-            BASE + "/api/status", timeout=5).read()
-    except Exception:
-        print("✗ 服务没起来。先双击 start.bat，再跑这个脚本。")
+
+def main() -> int:
+    global SLOW, PAUSE_AT
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--from", dest="start", type=int, default=1)
+    ap.add_argument("--slow", action="store_true")
+    ap.add_argument("--pause-at", type=int, default=0,
+                    help="走到第 N 步停住等你手动录（例：7 校园地图）")
+    args = ap.parse_args()
+    SLOW = 1.0 if args.slow else 0.0
+    PAUSE_AT = args.pause_at
+
+    if not net_ok():
+        print("✗ 服务没起来，先双击 start.bat。")
         return 1
 
-    print("→ 登录两个账号 ...")
-    stu_cookie = login_cookie(args.student, args.student_pass)
-    adm_cookie = login_cookie(args.admin, args.admin_pass)
-    print("  OK")
-
+    # 每跑一次都换一个干净的 profile —— 否则上次的 cookie 还在，
+    # 打开 /admin 会直接进去，就拍不到「输密码」那一幕了。
+    import shutil as _sh, time as _t
+    if os.path.isdir(PROFILE):
+        for _ in range(3):
+            try:
+                _sh.rmtree(PROFILE, ignore_errors=True)
+                if not os.path.isdir(PROFILE):
+                    break
+            except Exception:
+                _t.sleep(0.6)
     os.makedirs(PROFILE, exist_ok=True)
-    print("→ 启动可见 Chrome（不要关它，录屏就录这个窗口）...")
+    print("→ 打开 Chrome（干净会话，会真的要求输密码；录屏就录这个窗口）...")
     proc = subprocess.Popen([
         CHROME, "--no-first-run", "--no-default-browser-check",
         "--no-proxy-server", "--proxy-bypass-list=*",
-        "--disable-features=Translate", "--hide-crash-restore-bubble",
+        "--disable-features=Translate",
         f"--remote-debugging-port={PORT}", f"--user-data-dir={PROFILE}",
-        "--window-position=60,40", "--window-size=1460,960",
+        "--window-position=60,30", "--window-size=1460,970",
         "--app=about:blank",
     ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
@@ -348,36 +415,31 @@ def main() -> int:
         except Exception:
             pass
     if not ws_url:
-        print("✗ Chrome 没起来")
+        print("✗ Chrome 起不来")
         proc.kill()
         return 1
 
     ws = WS(ws_url)
-    ws.call("Page.enable")
-    ws.call("Runtime.enable")
-    ws.call("Network.enable")
+    for m in ("Page.enable", "Runtime.enable", "Network.enable", "DOM.enable"):
+        ws.call(m)
     d = Demo(ws)
 
     t0 = time.time()
     try:
-        if args.start <= 1:
-            act_portal(d)
-        if args.start <= 2:
-            act_student_login(d, stu_cookie)
-        if args.start <= 3:
-            act_ask(d, "奖学金怎么评", "③ 第一问：它会自己判断该找哪个助手")
-        if args.start <= 4:
-            act_show_trace(d)
-            act_ask(d, "新生报到需要带哪些材料", "④ 换个话题，它自己换了个助手")
-        if args.start <= 5:
-            act_admin(d, adm_cookie)
-        if args.start <= 6:
-            act_map(d, adm_cookie)
-            act_student_map(d, stu_cookie)
-        act_end(d)
+        # 从中间某步开始时，页面还停在空白页，先回首页把地基铺上
+        if args.start > 1:
+            d.goto(BASE + "/", 2.5)
+        for no, fn in STEPS:
+            if no < args.start:
+                continue
+            CURRENT[0] = no
+            fn(d)
+        d.hide_hint()
+        print(f"\n✓ 走完，用时 {time.time()-t0:.0f} 秒")
+    except KeyboardInterrupt:
+        print("\n(中断)")
     finally:
-        print(f"\n✓ 跑完，用时 {time.time()-t0:.0f} 秒")
-        print("  窗口留着方便你补录；关掉它这个脚本就结束了。")
+        print("  窗口留着方便补录。")
     return 0
 
 
