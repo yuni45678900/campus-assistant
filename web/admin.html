@@ -391,7 +391,7 @@
     <button class="nav-item" data-view="kb"><span class="ni">📚</span><span>知识库</span><span class="nb" id="nb-docs">—</span></button>
     <button class="nav-item" data-view="records"><span class="ni">📝</span><span>问答记录</span><span class="nb" id="nb-records">—</span></button>
     <button class="nav-item" data-view="accounts"><span class="ni">🔑</span><span>学校账号</span><span class="nb" id="nb-accounts">—</span></button>
-    <button class="nav-item" data-view="plugin"><span class="ni">🧩</span><span>开源插件</span></button>
+    <button class="nav-item" data-view="plugin"><span class="ni">🧩</span><span>校园地图</span></button>
     <button class="nav-item" data-view="system"><span class="ni">⚙️</span><span>系统状态</span></button>
 
     <div class="sidebar-foot">
@@ -547,20 +547,20 @@
       </div>
 
       <!-- 系统状态 -->
-      <!-- 开源插件：管理员填一个外部链接，学生在学生端能打开 -->
+      <!-- 校园地图：管理员填一个地图链接，学生在学生端能打开 -->
       <div class="view" id="v-plugin">
         <div class="panel">
           <div class="panel-h">
-            <h2>开源插件</h2>
-            <div class="desc">填一个外部链接，学生在学生端就能打开（如校园地图、第三方工具）</div>
+            <h2>校园地图</h2>
+            <div class="desc">填一个地图链接，学生在学生端就能打开。默认不添加，填好再勾上开关</div>
           </div>
           <div class="site-form">
             <label><span>插件链接</span>
               <input id="map-url" maxlength="500"
-                     placeholder="https://example.com/plugin/">
+                     placeholder="https://example.com/campus-map/">
             </label>
             <label><span>入口名称（鼠标悬停时显示）</span>
-              <input id="map-label" maxlength="20" placeholder="开源插件">
+              <input id="map-label" maxlength="20" placeholder="校园地图">
             </label>
             <label class="chk">
               <input type="checkbox" id="map-enabled">
@@ -622,7 +622,7 @@
     upload:     ["上传文档", "传上来就行，系统自动判断归到哪个分类"],
     accounts:   ["学生账号", ""],        // 副标题留空 = 该视图不显示那行小字
     system:     ["系统状态", "运行参数、回收站与危险操作"],
-    plugin:     ["开源插件", "填一个外部链接，学生在学生端能打开"],
+    plugin:     ["校园地图", "填一个地图链接，学生在学生端就能打开"],
   };
 
   /* ── 工具 ───────────────────────── */
@@ -864,6 +864,24 @@
     } catch (e) { toast(e.message, "err"); }
   }
 
+  /* 地图链接记在浏览器里：以后打开这一页，链接框空着时按一下 Tab 就能把上次那个带出来 */
+  const MAP_URL_KEY = "campus_map_url";
+  const mapUrlInput = $("map-url");
+  if (mapUrlInput) {
+    mapUrlInput.addEventListener("keydown", (e) => {
+      if (e.key !== "Tab" || e.shiftKey || e.ctrlKey || e.metaKey) return;
+      if (mapUrlInput.value.trim()) return;          // 已经填了就别打扰，正常跳到下一个框
+      let last = "";
+      try { last = localStorage.getItem(MAP_URL_KEY) || ""; } catch (err) { /* 取不到就算了 */ }
+      if (!last) return;
+      e.preventDefault();
+      mapUrlInput.value = last;
+      mapUrlInput.focus();
+      mapUrlInput.setSelectionRange(last.length, last.length);
+      toast("已填入上次用的地图链接", "ok");
+    });
+  }
+
   $("map-save").addEventListener("click", async () => {
     const url = $("map-url").value.trim();
     const on = $("map-enabled").checked;
@@ -876,6 +894,7 @@
     btn.disabled = true;
     btn.textContent = "保存中…";
     try {
+      if (url) { try { localStorage.setItem(MAP_URL_KEY, url); } catch (e) { /* 隐私模式忽略 */ } }
       const d = await api("/api/admin/settings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },

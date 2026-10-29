@@ -61,15 +61,6 @@
     box-shadow:0 8px 18px rgba(var(--brand-rgb),.32);transition:background .4s,box-shadow .4s;
   }
   .brand-name{font-size:15px;font-weight:700;letter-spacing:.2px;line-height:1.35}
-  /* 校园地图入口：坐在品牌名右侧，管理端没配就不显示 */
-  .map-btn{
-    margin-left:auto;flex-shrink:0;width:32px;height:32px;border-radius:11px;
-    display:grid;place-items:center;font-size:15px;cursor:pointer;line-height:1;
-    background:rgba(var(--brand-rgb),.12);border:1px solid rgba(var(--brand-rgb),.26);
-    transition:.18s;
-  }
-  .map-btn:hover{background:rgba(var(--brand-rgb),.22);transform:translateY(-1px);
-    box-shadow:0 4px 12px rgba(var(--brand-rgb),.22)}
   /* 校名：演示时一眼看出这个号是给哪个大学开的 */
   .brand-sub{
     font-size:11.5px;color:var(--brand);line-height:1.4;margin-top:2px;font-weight:600;
@@ -160,7 +151,7 @@
   .lock-entry{width:100%;justify-content:center;gap:7px;background:#fff}
   .lock-entry .lk{font-size:13px;line-height:1}
 
-  /* 开源插件：做成小助手卡片那种份量，不缩成小胶囊 */
+  /* 校园地图入口：做成小助手卡片那种份量，不缩成小胶囊 */
   #plugin-entry{
     padding:17px 14px;font-size:14.5px;font-weight:600;border-radius:13px;
     color:var(--brand-deep);border-color:rgba(var(--brand-rgb),.28);
@@ -562,8 +553,6 @@
         <div class="brand-name" id="brand-name">智伴校园</div>
         <div class="brand-sub" id="brand-school" hidden></div>
       </div>
-      <!-- 校园地图入口：管理端配了地址才会出现 -->
-      <span class="map-btn" id="map-btn" hidden title="校园地图">📍</span>
     </a>
 
     <div class="card">
@@ -573,9 +562,9 @@
       </div>
     </div>
 
-    <!-- 开源插件：管理端配了链接并打开开关才会出现，位置在小助手与管理员之间 -->
+    <!-- 校园地图：管理端填好链接并打开开关才会出现，位置在小助手与管理员之间 -->
     <button class="back lock-entry" id="plugin-entry" type="button" hidden>
-      <span class="lk">🧩</span><span>开源插件</span>
+      <span class="lk">🧩</span><span>校园地图</span>
     </button>
 
     <div class="me" id="me">
@@ -1521,7 +1510,7 @@
       entry.addEventListener("click", () => { location.href = "/admin"; });
     }
 
-    /* 开源插件入口：管理端在「开源插件」页填了链接并打开开关，这里才出现；
+    /* 校园地图入口：管理端在「校园地图」页填了链接并打开开关，这里才出现；
        位置在小助手卡片和超级管理员之间，点开在新标签页打开。 */
     (async function pluginEntry() {
       const btn = $("plugin-entry");
@@ -1529,7 +1518,7 @@
       try {
         const s = await fetch("/api/site").then((r) => r.json());
         if (!s.map_enabled || !s.map_url) return;
-        btn.title = s.map_label || "开源插件";
+        btn.title = s.map_label || "校园地图";
         btn.hidden = false;
         btn.addEventListener("click", () => {
           window.open(s.map_url, "_blank", "noopener");
