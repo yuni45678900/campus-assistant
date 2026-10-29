@@ -909,6 +909,29 @@ async def admin_settings_save(request: Request, req: SiteSettingRequest,
     return {"ok": True, "settings": saved}
 
 
+def _kick_reindex_async(assistant: str) -> None:
+    """上传完在后台把这个分类的索引重建一次，不挡上传响应。
+
+    以前只回一个 need_reindex 标记，让管理员自己去点「重建索引」；
+    忘了点就会出现「文档已索引、片段 0 个」的假状态。这里改成自动补建，
+    建失败也只记日志，不影响上传本身。
+    """
+    name = (assistant or "").strip()
+    if not name:
+        return
+
+    def _run() -> None:
+        try:
+            from app import admin as _admin
+            _admin.rebuild(only=[name], with_faq=False)
+            print(f"  [auto-index] 「{name}」已重建", flush=True)
+        except Exception as e:                       # 后台失败不能影响主流程
+            print(f"  [auto-index] 「{name}」重建失败：{e}", flush=True)
+
+    import threading as _th
+    _th.Thread(target=_run, daemon=True).start()
+
+
 async def _finish_upload(result: dict, assistant: str = "", relpath: str = "") -> dict:
     """
     上传收尾，三种走法：
@@ -992,6 +1015,8 @@ async def admin_upload_raw(request: Request, filename: str, assistant: str = "",
                             status_code=500)
 
     result["channel"] = "raw"
+    if result.get("need_reindex"):
+        _kick_reindex_async(result.get("assistant") or assistant)
     return result
 
 
@@ -1029,6 +1054,8 @@ if _MULTIPART_OK:
                                 status_code=500)
 
         result["channel"] = "multipart"
+        if result.get("need_reindex"):
+            _kick_reindex_async(result.get("assistant") or assistant)
         return result
 
 
