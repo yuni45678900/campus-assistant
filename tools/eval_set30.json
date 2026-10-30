@@ -1,0 +1,411 @@
+{
+  "version": "1.0",
+  "built_on": "2026-10-30",
+  "corpus": "data/raw（伴学 / 招生 / 迎新 三个分类，72 篇校本资料）",
+  "note": "题面与正确出处均按实际校本资料编写；points 为答案要点关键词，多个关键词用 | 分隔表示任一命中即可。answerable=false 的题目在语料中确无对应内容，用于检验拒答。 题面按学生口语写，刻意不出现文档标题里的词，以免把测试集做成\"标题匹配\"。 H10 要点按文档原文（第二课堂需修满 6 分）修正；U02 因原题在美食推荐.docx 中可答而更换为期末考试安排。",
+  "items": [
+    {
+      "id": "H01",
+      "group": "高频",
+      "assistant": "伴学",
+      "q": "奖学金啥时候能评？我大一的能去吗",
+      "files": [
+        "奖学金.docx"
+      ],
+      "points": [
+        "9",
+        "10月|十月|秋季"
+      ],
+      "answerable": true
+    },
+    {
+      "id": "H02",
+      "group": "高频",
+      "assistant": "伴学",
+      "q": "我今年刚上大一，有资格评奖学金吗",
+      "files": [
+        "奖学金.docx"
+      ],
+      "points": [
+        "没有|无|不具备|不可以",
+        "大一|新生"
+      ],
+      "answerable": true
+    },
+    {
+      "id": "H03",
+      "group": "高频",
+      "assistant": "迎新",
+      "q": "助学贷款最多能贷多少钱",
+      "files": [
+        "新生助学贷款须知.docx"
+      ],
+      "points": [
+        "16000|1.6万|一万六",
+        "20000|2万|两万"
+      ],
+      "answerable": true
+    },
+    {
+      "id": "H04",
+      "group": "高频",
+      "assistant": "迎新",
+      "q": "开学前那个线上报到，几号到几号弄完",
+      "files": [
+        "新生报到须知.docx"
+      ],
+      "points": [
+        "8月21|8月 21",
+        "8月23|8月 23"
+      ],
+      "answerable": true
+    },
+    {
+      "id": "H05",
+      "group": "高频",
+      "assistant": "迎新",
+      "q": "去学校报到的时候要带哪些东西",
+      "files": [
+        "入学指南.docx",
+        "新生报到须知.docx"
+      ],
+      "points": [
+        "录取通知书",
+        "身份证",
+        "准考证"
+      ],
+      "answerable": true
+    },
+    {
+      "id": "H06",
+      "group": "高频",
+      "assistant": "迎新",
+      "q": "宿舍是几人间，屋里有没有空调",
+      "files": [
+        "新生住宿须知.docx"
+      ],
+      "points": [
+        "六人间|6人间",
+        "四人间|4人间",
+        "空调|暖气|书桌|衣柜"
+      ],
+      "answerable": true
+    },
+    {
+      "id": "H07",
+      "group": "高频",
+      "assistant": "伴学",
+      "q": "选课没抢上，还能补选吗",
+      "files": [
+        "选课相关说明文档.docx"
+      ],
+      "points": [
+        "选课",
+        "补选",
+        "退改|退课|改选"
+      ],
+      "answerable": true
+    },
+    {
+      "id": "H08",
+      "group": "高频",
+      "assistant": "伴学",
+      "q": "一学期最多能选多少课，会不会撞课",
+      "files": [
+        "选课相关说明文档.docx"
+      ],
+      "points": [
+        "学分",
+        "时间冲突|同一时间段",
+        "已修|已通过"
+      ],
+      "answerable": true
+    },
+    {
+      "id": "H09",
+      "group": "高频",
+      "assistant": "伴学",
+      "q": "毕业一共要修够多少学分",
+      "files": [
+        "学分情况说明文档.docx"
+      ],
+      "points": [
+        "160"
+      ],
+      "answerable": true
+    },
+    {
+      "id": "H10",
+      "group": "高频",
+      "assistant": "伴学",
+      "q": "第二课堂那部分要凑多少学分",
+      "files": [
+        "第二课堂管理说明文档.docx"
+      ],
+      "points": [
+        "6分|6 分|六分"
+      ],
+      "answerable": true,
+      "note": "答案依据：第二课堂管理说明文档·一、学分要求"
+    },
+    {
+      "id": "N01",
+      "group": "数字",
+      "assistant": "迎新",
+      "q": "军训要练多久",
+      "files": [
+        "军训时长.docx"
+      ],
+      "points": [
+        "15天|15 天|十五天"
+      ],
+      "answerable": true
+    },
+    {
+      "id": "N02",
+      "group": "数字",
+      "assistant": "迎新",
+      "q": "军训大概什么时候开始、什么时候结束",
+      "files": [
+        "军训时长.docx"
+      ],
+      "points": [
+        "8月25|8 月 25",
+        "9月10|9 月 10"
+      ],
+      "answerable": true
+    },
+    {
+      "id": "N03",
+      "group": "数字",
+      "assistant": "迎新",
+      "q": "新生体检安排在什么时候",
+      "files": [
+        "新生体检安排.docx"
+      ],
+      "points": [
+        "8月28|8 月 28",
+        "9月1|9 月 1"
+      ],
+      "answerable": true
+    },
+    {
+      "id": "N04",
+      "group": "数字",
+      "assistant": "迎新",
+      "q": "体检是几点到几点，我下午还有事",
+      "files": [
+        "新生体检安排.docx"
+      ],
+      "points": [
+        "8:00|8：00",
+        "11:30|11：30",
+        "14:30|14：30",
+        "17:00|17：00"
+      ],
+      "answerable": true
+    },
+    {
+      "id": "N05",
+      "group": "数字",
+      "assistant": "伴学",
+      "q": "公共课要修多少学分",
+      "files": [
+        "学分情况说明文档.docx"
+      ],
+      "points": [
+        "40"
+      ],
+      "answerable": true
+    },
+    {
+      "id": "N06",
+      "group": "数字",
+      "assistant": "伴学",
+      "q": "绩点是怎么算的，考90分算多少绩点",
+      "files": [
+        "绩点计算补考缓考重修流程.docx"
+      ],
+      "points": [
+        "5.0|5 分制",
+        "4.0"
+      ],
+      "answerable": true
+    },
+    {
+      "id": "N07",
+      "group": "数字",
+      "assistant": "伴学",
+      "q": "补考有什么门槛，分数太低是不是不能补",
+      "files": [
+        "绩点计算补考缓考重修流程.docx"
+      ],
+      "points": [
+        "35"
+      ],
+      "answerable": true
+    },
+    {
+      "id": "N08",
+      "group": "数字",
+      "assistant": "伴学",
+      "q": "图书馆有多少个自习座位",
+      "files": [
+        "图书馆.docx"
+      ],
+      "points": [
+        "2708"
+      ],
+      "answerable": true
+    },
+    {
+      "id": "X01",
+      "group": "跨文档",
+      "assistant": "迎新",
+      "q": "报到那天要带什么，线上预报到又是几号到几号",
+      "files": [
+        "新生报到须知.docx",
+        "入学指南.docx"
+      ],
+      "points": [
+        "8月21|8 月 21",
+        "录取通知书",
+        "身份证"
+      ],
+      "answerable": true
+    },
+    {
+      "id": "X02",
+      "group": "跨文档",
+      "assistant": "迎新",
+      "q": "军训那阵子还要去体检吗，会不会撞在一起",
+      "files": [
+        "军训时长.docx",
+        "新生体检安排.docx"
+      ],
+      "points": [
+        "8月25|8 月 25",
+        "8月28|8 月 28",
+        "9月1|9 月 1"
+      ],
+      "answerable": true
+    },
+    {
+      "id": "X03",
+      "group": "跨文档",
+      "assistant": "迎新",
+      "q": "贷款的钱能抵学费吗，最多能贷多少",
+      "files": [
+        "新生助学贷款须知.docx",
+        "学费缴纳.docx"
+      ],
+      "points": [
+        "学费",
+        "住宿费",
+        "16000|20000|1.6万|2万"
+      ],
+      "answerable": true
+    },
+    {
+      "id": "X04",
+      "group": "跨文档",
+      "assistant": "迎新",
+      "q": "宿舍能用大功率电器吗，吹风机算不算违禁品",
+      "files": [
+        "违规电器.docx",
+        "新生安全提示.docx"
+      ],
+      "points": [
+        "严禁|禁止|不能|不得",
+        "电热|电吹风|电水壶|电磁炉|电饭锅"
+      ],
+      "answerable": true
+    },
+    {
+      "id": "X05",
+      "group": "跨文档",
+      "assistant": "伴学",
+      "q": "选课有几个阶段，毕业要修多少分",
+      "files": [
+        "选课相关说明文档.docx",
+        "学分情况说明文档.docx"
+      ],
+      "points": [
+        "补选",
+        "退改",
+        "160"
+      ],
+      "answerable": true
+    },
+    {
+      "id": "X06",
+      "group": "跨文档",
+      "assistant": "伴学",
+      "q": "绩点低了会不会影响评奖学金",
+      "files": [
+        "绩点计算补考缓考重修流程.docx",
+        "奖学金.docx"
+      ],
+      "points": [
+        "评奖|评优|奖学金",
+        "GPA|绩点"
+      ],
+      "answerable": true
+    },
+    {
+      "id": "U01",
+      "group": "未覆盖",
+      "assistant": "auto",
+      "q": "学校班车几点发车？",
+      "files": [],
+      "points": [],
+      "answerable": false
+    },
+    {
+      "id": "U02",
+      "group": "未覆盖",
+      "assistant": "auto",
+      "q": "期末考试安排在什么时候？",
+      "files": [],
+      "points": [],
+      "answerable": false,
+      "note": "原题「食堂一顿饭多少钱」实际可答（美食推荐.docx 有价格），已更换"
+    },
+    {
+      "id": "U03",
+      "group": "未覆盖",
+      "assistant": "auto",
+      "q": "宿舍的 Wi-Fi 密码是多少？",
+      "files": [],
+      "points": [],
+      "answerable": false
+    },
+    {
+      "id": "U04",
+      "group": "未覆盖",
+      "assistant": "auto",
+      "q": "校长的手机号是多少？",
+      "files": [],
+      "points": [],
+      "answerable": false
+    },
+    {
+      "id": "U05",
+      "group": "未覆盖",
+      "assistant": "auto",
+      "q": "休学需要办哪些手续？",
+      "files": [],
+      "points": [],
+      "answerable": false
+    },
+    {
+      "id": "U06",
+      "group": "未覆盖",
+      "assistant": "auto",
+      "q": "辅修第二专业怎么报名？",
+      "files": [],
+      "points": [],
+      "answerable": false
+    }
+  ]
+}
